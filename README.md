@@ -19,113 +19,249 @@ A Go-based REST API that provides Directus-style functionality with comprehensiv
 - Docker & Docker Compose
 - sqlc (optional, for code generation)
 
-## 🛠️ Quick Start
+## 🚀 **Getting Started - Choose Your Path**
 
-### 🚀 One-Command Installation (Recommended)
+### **🎯 Quick Start (Recommended)**
 
-**From anywhere, with a single command:**
+**Want to get up and running in 2 minutes?**
 
-**Unix/Linux/macOS:**
+1. **Open a terminal/command prompt**
+2. **Run one command:**
+   - **Windows:** `powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install-simple.ps1 -UseBasicParsing | iex }"`
+   - **Mac/Linux:** `bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.sh)`
+3. **Wait for setup to complete**
+4. **Run:** `go run cmd/main.go`
+5. **Visit:** `http://localhost:8080`
+
+**That's it!** Your API is ready with admin user, database, and all permissions set up.
+
+---
+
+## 📋 **Detailed Setup Options**
+
+### **Option 1: One-Command Installation (Easiest)**
+
+**Start from any empty directory with a single command:**
+
+#### **Windows (PowerShell):**
+```powershell
+# Simple version (recommended)
+powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install-simple.ps1 -UseBasicParsing | iex }"
+```
+
+#### **Unix/Linux/macOS:**
 ```bash
 bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.sh)
 ```
 
-**Windows (PowerShell):**
+**What this does automatically:**
+1. ✅ **Checks prerequisites** (Go 1.21+, Docker, Docker Compose)
+2. 🔄 **Clones the repository** (creates `directus-clone` directory)
+3. 🔍 **Sets up environment variables** (creates .env file)
+4. 🐘 **Starts PostgreSQL database** (with health checks)
+5. 🗄️ **Applies all database migrations**
+6. 👤 **Creates admin user** (from environment variables)
+7. 📦 **Installs Go dependencies**
+8. 🔧 **Generates database code**
+9. 🔨 **Builds the application**
+10. 📋 **Shows you how to start the API**
+
+**Perfect for:** New projects, demos, testing, learning
+
+---
+
+### **Option 2: Local Setup (If you already have the code)**
+
+**If you've already cloned the repository:**
+
+#### **Windows:**
 ```powershell
-# Simple version (recommended)
-powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install-simple.ps1 -UseBasicParsing | iex }"
-
-# Full version with version checking
-powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.ps1 -UseBasicParsing | iex }"
-```
-
-This will:
-- ✅ **Check all prerequisites** (Go 1.21+, Docker 20.0+, Docker Compose 2.0+)
-- 🔄 **Clone the repository** (creates `directus-clone` directory)
-- 🔍 **Validate environment variables** (checks .env file and validates values)
-- 🐘 **Start a fresh PostgreSQL database** (with health checks)
-- 🗄️ **Apply all migrations dynamically** (finds and runs all .sql files in migrations/)
-- 📦 **Install Go dependencies** (go mod tidy)
-- 🔧 **Generate database code** (sqlc generate)
-- 🔨 **Build the application** (go build)
-- 📋 **Display all credentials and endpoints**
-
-**Perfect for:**
-- 🆕 **New projects** - Start from scratch in any directory
-- 🔄 **Quick demos** - Get up and running in minutes
-- 🧪 **Testing** - Fresh environment every time
-- 📚 **Learning** - No complex setup required
-
-### 🛠️ Local Setup (Alternative)
-
-**Windows:**
-```powershell
-# PowerShell
+# Method 1: PowerShell script
 .\setup.ps1
 
-# Or simply double-click:
+# Method 2: Double-click (easiest)
 setup.bat
 
-# With options:
+# Method 3: With options
 .\setup.ps1 -Help
-.\setup.ps1 -Version
+.\setup.ps1 -SkipEnvCheck  # Skip environment setup
+.\setup.ps1 -SkipMigrations  # Skip database migrations
+.\setup.ps1 -SkipBuild  # Skip building the app
 ```
 
-**Unix/Linux/macOS:**
+#### **Unix/Linux/macOS:**
 ```bash
-# Make executable and run
+# Method 1: Make executable and run
 chmod +x setup.sh
 ./setup.sh
 
-# Or run directly with bash
+# Method 2: Run directly with bash
 bash setup.sh
 
-# With options:
+# Method 3: With options
 ./setup.sh --help
-./setup.sh --version
+./setup.sh --skip-migrations
 ```
 
-This will:
-- ✅ **Check all prerequisites** (Go 1.21+, Docker 20.0+, Docker Compose 2.0+)
-- 🔄 **Clone/update repository** (automatically pulls latest changes)
-- 🔍 **Validate environment variables** (checks .env file and validates values)
-- 🐘 **Start a fresh PostgreSQL database** (with health checks)
-- 🗄️ **Apply all migrations dynamically** (finds and runs all .sql files in migrations/)
-- 📦 **Install Go dependencies** (go mod tidy)
-- 🔧 **Generate database code** (sqlc generate)
-- 🔨 **Build the application** (go build)
-- 📋 **Display all credentials and endpoints**
+**What this does:**
+1. ✅ **Checks prerequisites** (Go 1.21+, Docker, Docker Compose, Git)
+2. 🔍 **Sets up environment variables** (creates/validates .env file)
+3. 🐘 **Starts PostgreSQL database** (with health checks)
+4. 🗄️ **Applies all database migrations**
+5. 👤 **Creates admin user** (from environment variables)
+6. 📦 **Installs Go dependencies**
+7. 🔧 **Generates database code**
+8. 🔨 **Builds the application**
+9. 📋 **Shows you how to start the API**
 
-**Dynamic Features:**
-- 🆕 **Future-proof**: Automatically handles new migration files
-- 🔧 **Environment validation**: Checks for required env vars and validates formats
-- 📊 **Version checking**: Ensures minimum versions of Go, Docker, etc.
-- 🔄 **Repository management**: Clones or updates from git automatically
-- 🛡️ **Error handling**: Comprehensive error checking and reporting
+---
 
-### Manual Setup
+### **Option 3: Manual Setup (Advanced)**
+
+**If you prefer to do everything manually:**
+
 ```bash
-# 1. Clone and Setup
-git clone <repository-url>
+# 1. Clone the repository
+git clone https://github.com/treyhulse/directus-clone.git
 cd directus-clone
 
-# 2. Install Dependencies
-go mod tidy
+# 2. Set up environment variables
+cp env.example .env
+# Edit .env with your preferred settings
 
-# 3. Start Database
+# 3. Start the database
 docker-compose up -d
 
-# 4. Install sqlc (if not already installed)
+# 4. Wait for database to be ready (about 15 seconds)
+# Then apply migrations
+docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db < migrations/001_init.sql
+docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db < migrations/002_api_keys.sql
+docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db < migrations/003_admin_permissions.sql
+
+# 5. Install Go dependencies
+go mod tidy
+
+# 6. Install sqlc (if not already installed)
 go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
-# 5. Generate Database Code
+# 7. Generate database code
 sqlc generate
 
-# 6. Run the Application
+# 8. Build the application
+go build -o bin/api cmd/main.go
+
+# 9. Run the application
 go run cmd/main.go
 ```
 
-### Option C: Install Make on Windows (Optional)
+---
+
+## 🎯 **After Setup - Start Your API**
+
+**Once setup is complete, start your API:**
+
+```bash
+# Option 1: Run directly
+go run cmd/main.go
+
+# Option 2: Run the built binary
+./bin/api  # Linux/macOS
+.\bin\api.exe  # Windows
+```
+
+**Your API will be available at:** `http://localhost:8080`
+
+**Default admin credentials:**
+- **Email:** `admin@example.com`
+- **Password:** `password`
+
+**API Keys for testing:**
+- **Admin:** `admin_api_key_123`
+- **Manager:** `manager_api_key_456`
+
+---
+
+## 🔧 **Environment Configuration**
+
+The setup scripts will create a `.env` file with these settings:
+
+```bash
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=go_rbac_db
+DB_SSLMODE=disable
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_EXPIRY=24h
+
+# Server Configuration
+SERVER_PORT=8080
+SERVER_MODE=debug
+
+# Admin User Configuration
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=password
+ADMIN_FIRST_NAME=Admin
+ADMIN_LAST_NAME=User
+```
+
+**You can customize these values in your `.env` file before running the setup.**
+
+---
+
+## 🔧 **Troubleshooting Common Issues**
+
+### **Setup Issues**
+
+#### **"Docker is not installed"**
+- **Solution:** Install Docker Desktop from https://www.docker.com/products/docker-desktop/
+- **Windows:** Make sure Docker Desktop is running (check system tray)
+
+#### **"Go is not installed"**
+- **Solution:** Install Go 1.21+ from https://golang.org/dl/
+- **Verify:** Run `go version` in terminal
+
+#### **"docker-compose is not recognized"**
+- **Solution:** 
+  1. Make sure Docker Desktop is installed and running
+  2. Try using `docker compose up -d` (with a space instead of hyphen)
+  3. Restart your terminal after installing Docker Desktop
+
+#### **Database connection errors**
+- **Solution:** 
+  1. Make sure PostgreSQL is running: `docker-compose ps`
+  2. Check if port 5432 is available (stop any local PostgreSQL)
+  3. Restart Docker Desktop if needed
+
+#### **"sqlc is not recognized"**
+- **Solution:** The setup script will install it automatically, or run: `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
+
+### **Runtime Issues**
+
+#### **"403 Insufficient permissions"**
+- **Solution:** Make sure you're using the correct admin credentials:
+  - Email: `admin@example.com`
+  - Password: `password`
+
+#### **"Connection refused" on localhost:8080**
+- **Solution:** 
+  1. Make sure the API is running: `go run cmd/main.go`
+  2. Check if port 8080 is available
+  3. Try a different port in your `.env` file
+
+#### **Docker API errors (500 Internal Server Error)**
+- **Solution:** 
+  1. Restart Docker Desktop completely
+  2. Run `docker system prune -a` to clean up
+  3. Reset Docker Desktop to factory defaults if needed
+
+---
+
+### **Option C: Install Make on Windows (Optional)**
 
 If you prefer to use the make commands on Windows, you can install `make`:
 

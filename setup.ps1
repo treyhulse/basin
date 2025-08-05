@@ -1,19 +1,16 @@
-# Dynamic Setup Script for Go RBAC API
-# This script is designed to be future-proof and handle various scenarios
+# Comprehensive Setup Script for Go RBAC API (PowerShell)
+# Usage: .\setup.ps1
 
 param(
     [switch]$Help,
-    [switch]$Version
+    [switch]$Version,
+    [switch]$SkipEnvCheck,
+    [switch]$SkipMigrations,
+    [switch]$SkipBuild
 )
 
 # Script configuration
 $ScriptVersion = "2.0.0"
-$RepoUrl = "https://github.com/treyhulse/directus-clone.git"
-$RepoBranch = "main"
-$MinGoVersion = "1.21"
-$MinDockerVersion = "20.0"
-$MinDockerComposeVersion = "2.0"
-$RequiredEnvVars = @("DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "JWT_SECRET", "SERVER_PORT")
 
 # Function to print colored output
 function Write-Status {
@@ -47,112 +44,6 @@ function Test-Command {
     return [bool](Get-Command -Name $CommandName -ErrorAction SilentlyContinue)
 }
 
-# Function to compare version numbers
-function Compare-Version {
-    param([string]$Version1, [string]$Version2)
-    
-    $v1 = [version]$Version1
-    $v2 = [version]$Version2
-    
-    if ($v1 -eq $v2) { return 0 }
-    if ($v1 -gt $v2) { return 1 }
-    return 2
-}
-
-# Function to get version of a command
-function Get-CommandVersion {
-    param([string]$Command, [string]$VersionFlag)
-    
-    if (Test-Command $Command) {
-        try {
-            $output = & $Command $VersionFlag 2>&1 | Select-Object -First 1
-            $version = $output -replace '.*?(\d+\.\d+(?:\.\d+)?).*', '$1'
-            if ($version -match '^\d+\.\d+(?:\.\d+)?$') {
-                return $version
-            }
-        }
-        catch {
-            # Ignore errors
-        }
-    }
-    return ""
-}
-
-# Function to validate environment variables
-function Test-EnvironmentVariables {
-    Write-Info "Validating environment variables..."
-    
-    $missingVars = @()
-    $invalidVars = @()
-    
-    # Check if .env file exists
-    if (-not (Test-Path ".env")) {
-        Write-Warning ".env file not found. Creating from template..."
-        if (Test-Path "env.example") {
-            Copy-Item "env.example" ".env"
-            Write-Status "Created .env from env.example"
-        }
-        else {
-            Write-Error "No .env file and no env.example template found!"
-            return $false
-        }
-    }
-    
-    # Load environment variables
-    if (Test-Path ".env") {
-        Get-Content ".env" | ForEach-Object {
-            if ($_ -match '^([^#][^=]+)=(.*)$') {
-                $name = $matches[1].Trim()
-                $value = $matches[2].Trim()
-                [Environment]::SetEnvironmentVariable($name, $value, "Process")
-            }
-        }
-    }
-    
-    # Check required variables
-    foreach ($var in $RequiredEnvVars) {
-        if ([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($var))) {
-            $missingVars += $var
-        }
-    }
-    
-    # Validate specific variables
-    $dbPort = [Environment]::GetEnvironmentVariable("DB_PORT")
-    if ($dbPort -and -not ($dbPort -match '^\d+$')) {
-        $invalidVars += "DB_PORT must be a number"
-    }
-    
-    $serverPort = [Environment]::GetEnvironmentVariable("SERVER_PORT")
-    if ($serverPort -and -not ($serverPort -match '^\d+$')) {
-        $invalidVars += "SERVER_PORT must be a number"
-    }
-    
-    $jwtSecret = [Environment]::GetEnvironmentVariable("JWT_SECRET")
-    if ($jwtSecret -and $jwtSecret.Length -lt 32) {
-        Write-Warning "JWT_SECRET is shorter than 32 characters (security risk)"
-    }
-    
-    # Report issues
-    if ($missingVars.Count -gt 0) {
-        Write-Error "Missing required environment variables:"
-        foreach ($var in $missingVars) {
-            Write-Host "  - $var" -ForegroundColor Red
-        }
-        return $false
-    }
-    
-    if ($invalidVars.Count -gt 0) {
-        Write-Error "Invalid environment variables:"
-        foreach ($var in $invalidVars) {
-            Write-Host "  - $var" -ForegroundColor Red
-        }
-        return $false
-    }
-    
-    Write-Status "Environment variables validated"
-    return $true
-}
-
 # Function to check prerequisites
 function Test-Prerequisites {
     Write-Header "Checking Prerequisites"
@@ -161,42 +52,18 @@ function Test-Prerequisites {
     
     # Check Go
     if (-not (Test-Command "go")) {
-        $issues += "Go is not installed"
+        $issues += "Go is not installed. Please install Go 1.21+ from https://golang.org/dl/"
     }
     else {
-        $goVersion = Get-CommandVersion "go" "version"
-        if ($goVersion) {
-            $compare = Compare-Version $goVersion $MinGoVersion
-            if ($compare -eq 2) {
-                $issues += "Go version $goVersion is older than required $MinGoVersion"
-            }
-            else {
-                Write-Status "Go $goVersion ✓"
-            }
-        }
-        else {
-            $issues += "Could not determine Go version"
-        }
+        Write-Status "Go ✓"
     }
     
     # Check Docker
     if (-not (Test-Command "docker")) {
-        $issues += "Docker is not installed"
+        $issues += "Docker is not installed. Please install Docker Desktop from https://www.docker.com/products/docker-desktop/"
     }
     else {
-        $dockerVersion = Get-CommandVersion "docker" "version"
-        if ($dockerVersion) {
-            $compare = Compare-Version $dockerVersion $MinDockerVersion
-            if ($compare -eq 2) {
-                $issues += "Docker version $dockerVersion is older than required $MinDockerVersion"
-            }
-            else {
-                Write-Status "Docker $dockerVersion ✓"
-            }
-        }
-        else {
-            $issues += "Could not determine Docker version"
-        }
+        Write-Status "Docker ✓"
     }
     
     # Check Docker Compose
@@ -204,40 +71,15 @@ function Test-Prerequisites {
         $issues += "Docker Compose is not installed"
     }
     else {
-        $composeVersion = ""
-        if (Test-Command "docker-compose") {
-            $composeVersion = Get-CommandVersion "docker-compose" "version"
-        }
-        else {
-            $composeVersion = Get-CommandVersion "docker" "compose version"
-        }
-        
-        if ($composeVersion) {
-            $compare = Compare-Version $composeVersion $MinDockerComposeVersion
-            if ($compare -eq 2) {
-                $issues += "Docker Compose version $composeVersion is older than required $MinDockerComposeVersion"
-            }
-            else {
-                Write-Status "Docker Compose $composeVersion ✓"
-            }
-        }
-        else {
-            $issues += "Could not determine Docker Compose version"
-        }
+        Write-Status "Docker Compose ✓"
     }
     
-    # Check sqlc
-    if (-not (Test-Command "sqlc")) {
-        Write-Warning "sqlc not found, will install during setup"
+    # Check Git
+    if (-not (Test-Command "git")) {
+        $issues += "Git is not installed. Please install Git from https://git-scm.com/"
     }
     else {
-        $sqlcVersion = Get-CommandVersion "sqlc" "version"
-        if ($sqlcVersion) {
-            Write-Status "sqlc $sqlcVersion ✓"
-        }
-        else {
-            Write-Warning "Could not determine sqlc version"
-        }
+        Write-Status "Git ✓"
     }
     
     # Report issues
@@ -255,87 +97,129 @@ function Test-Prerequisites {
     return $true
 }
 
-# Function to setup repository
-function Set-Repository {
-    Write-Header "Setting up Repository"
+# Function to setup environment variables
+function Setup-Environment {
+    Write-Header "Setting Up Environment Variables"
     
-    if (-not (Test-Path ".git")) {
-        Write-Info "Not a git repository. Cloning from $RepoUrl..."
-        try {
-            git clone -b $RepoBranch $RepoUrl .
-            Write-Status "Repository cloned successfully"
-        }
-        catch {
-            Write-Error "Failed to clone repository"
-            return $false
+    $envFiles = @(".env.local", ".env")
+    $envFile = $null
+    
+    # Check for existing env files
+    foreach ($file in $envFiles) {
+        if (Test-Path $file) {
+            $envFile = $file
+            Write-Info "Found existing environment file: $file"
+            break
         }
     }
-    else {
-        Write-Info "Git repository found. Checking for updates..."
-        git fetch origin
-        $currentBranch = git branch --show-current
-        if ($currentBranch -ne $RepoBranch) {
-            Write-Warning "Current branch is $currentBranch, switching to $RepoBranch"
-            git checkout $RepoBranch
+    
+    # If no env file exists, create one
+    if (-not $envFile) {
+        Write-Info "No environment file found. Creating .env from template..."
+        
+        if (Test-Path "env.example") {
+            Copy-Item "env.example" ".env"
+            $envFile = ".env"
+            Write-Status "Created .env from env.example"
         }
-        git pull origin $RepoBranch
-        Write-Status "Repository updated"
+        else {
+            Write-Warning "No env.example found. Creating basic .env file..."
+            
+            $envContent = @"
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=go_rbac_db
+DB_SSLMODE=disable
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_EXPIRY=24h
+
+# Server Configuration
+SERVER_PORT=8080
+SERVER_MODE=debug
+
+# Admin User Configuration
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=password
+ADMIN_FIRST_NAME=Admin
+ADMIN_LAST_NAME=User
+"@
+            
+            $envContent | Out-File -FilePath ".env" -Encoding UTF8
+            $envFile = ".env"
+            Write-Status "Created basic .env file"
+        }
     }
+    
+    # Load environment variables
+    if (Test-Path $envFile) {
+        Get-Content $envFile | ForEach-Object {
+            if ($_ -match '^([^#][^=]+)=(.*)$') {
+                $name = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                [Environment]::SetEnvironmentVariable($name, $value, "Process")
+            }
+        }
+        Write-Status "Environment variables loaded from $envFile"
+    }
+    
+    # Validate required environment variables
+    $requiredVars = @(
+        "DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME",
+        "JWT_SECRET", "SERVER_PORT", "ADMIN_EMAIL", "ADMIN_PASSWORD"
+    )
+    
+    $missingVars = @()
+    foreach ($var in $requiredVars) {
+        $value = [Environment]::GetEnvironmentVariable($var, "Process")
+        if (-not $value) {
+            $missingVars += $var
+        }
+    }
+    
+    if ($missingVars.Count -gt 0) {
+        Write-Error "Missing required environment variables:"
+        foreach ($var in $missingVars) {
+            Write-Host "  - $var" -ForegroundColor Red
+        }
+        Write-Host ""
+        Write-Info "Please add these variables to your $envFile file and try again."
+        return $false
+    }
+    
+    Write-Status "Environment variables validated"
     return $true
 }
 
-# Function to find all migration files
-function Get-MigrationFiles {
-    $migrations = @()
-    if (Test-Path "migrations") {
-        $migrations = Get-ChildItem -Path "migrations" -Filter "*.sql" -Recurse | 
-                     Sort-Object Name | 
-                     ForEach-Object { $_.FullName }
-    }
-    return $migrations
-}
-
-# Function to apply migrations
-function Invoke-Migrations {
-    Write-Header "Applying Database Migrations"
+# Function to start Docker services
+function Start-DockerServices {
+    Write-Header "Starting Docker Services"
     
-    $migrations = Get-MigrationFiles
+    # Stop any existing containers
+    Write-Info "Stopping any existing containers..."
+    docker-compose down 2>$null
     
-    if ($migrations.Count -eq 0) {
-        Write-Warning "No migration files found"
-        return $true
-    }
+    # Start PostgreSQL
+    Write-Info "Starting PostgreSQL database..."
+    docker-compose up -d
     
-    Write-Info "Found $($migrations.Count) migration files"
-    
-    foreach ($migration in $migrations) {
-        Write-Info "Applying $migration..."
-        try {
-            Get-Content $migration | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
-            Write-Status "Applied $migration"
-        }
-        catch {
-            Write-Warning "Migration $migration had issues (this might be expected for duplicate entries)"
-        }
-    }
-    return $true
-}
-
-# Function to check database health
-function Test-DatabaseHealth {
-    Write-Header "Checking Database Health"
-    
+    # Wait for database to be ready
+    Write-Info "Waiting for database to be ready..."
     $maxAttempts = 30
     $attempt = 0
     
-    while ($attempt -lt $maxAttempts) {
+    do {
         $attempt++
-        Write-Info "Checking database connection (attempt $attempt/$maxAttempts)..."
+        Start-Sleep -Seconds 2
         
         try {
             $result = docker exec go-rbac-postgres pg_isready -U postgres 2>$null
             if ($LASTEXITCODE -eq 0) {
-                Write-Status "Database is ready!"
+                Write-Status "Database is ready"
                 return $true
             }
         }
@@ -343,121 +227,212 @@ function Test-DatabaseHealth {
             # Ignore errors
         }
         
-        if ($attempt -eq $maxAttempts) {
-            Write-Error "Database failed to start after $maxAttempts attempts"
-            return $false
-        }
-        
-        Start-Sleep -Seconds 2
-    }
+        Write-Info "Attempt $attempt/$maxAttempts - Database not ready yet..."
+    } while ($attempt -lt $maxAttempts)
+    
+    Write-Error "Database failed to start within expected time"
     return $false
 }
 
-# Function to build application
-function Build-Application {
-    Write-Header "Building Application"
+# Function to apply migrations
+function Apply-Migrations {
+    Write-Header "Applying Database Migrations"
     
-    # Install Go dependencies
-    Write-Info "Installing Go dependencies..."
-    try {
-        go mod tidy
-        Write-Status "Dependencies installed"
-    }
-    catch {
-        Write-Error "Failed to install dependencies"
-        return $false
+    # Get all migration files
+    $migrations = Get-ChildItem -Path "migrations" -Filter "*.sql" | Sort-Object Name
+    
+    if ($migrations.Count -eq 0) {
+        Write-Warning "No migration files found in migrations/ directory"
+        return $true
     }
     
-    # Install sqlc if not present
-    if (-not (Test-Command "sqlc")) {
-        Write-Info "Installing sqlc..."
+    Write-Info "Found $($migrations.Count) migration files"
+    
+    foreach ($migration in $migrations) {
+        Write-Info "Applying $($migration.Name)..."
         try {
-            go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-            Write-Status "sqlc installed"
+            Get-Content $migration.FullName | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
+            if ($LASTEXITCODE -eq 0) {
+                Write-Status "Applied $($migration.Name)"
+            }
+            else {
+                Write-Warning "Migration $($migration.Name) had issues (this might be expected)"
+            }
         }
         catch {
-            Write-Error "Failed to install sqlc"
-            return $false
+            Write-Warning "Migration $($migration.Name) had issues (this might be expected)"
         }
     }
     
-    # Generate database code
-    Write-Info "Generating database code..."
-    try {
-        sqlc generate
-        Write-Status "Database code generated"
-    }
-    catch {
-        Write-Error "Failed to generate database code"
-        return $false
+    Write-Status "Migrations completed"
+    return $true
+}
+
+# Function to create admin user
+function Create-AdminUser {
+    Write-Header "Creating Admin User"
+    
+    $adminEmail = [Environment]::GetEnvironmentVariable("ADMIN_EMAIL", "Process")
+    $adminPassword = [Environment]::GetEnvironmentVariable("ADMIN_PASSWORD", "Process")
+    $adminFirstName = [Environment]::GetEnvironmentVariable("ADMIN_FIRST_NAME", "Process")
+    $adminLastName = [Environment]::GetEnvironmentVariable("ADMIN_LAST_NAME", "Process")
+    
+    if (-not $adminEmail -or -not $adminPassword) {
+        Write-Warning "Admin email or password not set in environment variables"
+        return $true
     }
     
-    # Build the application
-    Write-Info "Building application..."
+    Write-Info "Creating admin user: $adminEmail"
+    
+    # Check if admin user already exists
+    $checkQuery = "SELECT COUNT(*) FROM users WHERE email = '$adminEmail';"
+    $existingCount = docker exec go-rbac-postgres psql -U postgres -d go_rbac_db -t -c $checkQuery 2>$null
+    
+    if ($existingCount -match '\d+' -and [int]$matches[0] -gt 0) {
+        Write-Info "Admin user already exists"
+        return $true
+    }
+    
+    # Hash the password using the Go utility
+    $hashedPassword = ""
+    if (Test-Path "scripts/hash_password.go") {
+        try {
+            $hashedPassword = go run scripts/hash_password.go $adminPassword 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Failed to hash password, using plain text (will be hashed on first login)"
+                $hashedPassword = $adminPassword
+            }
+        }
+        catch {
+            Write-Warning "Failed to hash password, using plain text (will be hashed on first login)"
+            $hashedPassword = $adminPassword
+        }
+    }
+    else {
+        Write-Warning "Password hashing utility not found, using plain text (will be hashed on first login)"
+        $hashedPassword = $adminPassword
+    }
+    
+    # Create admin user
+    $createUserQuery = @"
+INSERT INTO users (id, email, password_hash, first_name, last_name, is_active, created_at, updated_at)
+VALUES (
+    gen_random_uuid(),
+    '$adminEmail',
+    '$hashedPassword',
+    '$adminFirstName',
+    '$adminLastName',
+    true,
+    NOW(),
+    NOW()
+);
+"@
+    
     try {
-        go build -o bin/api cmd/main.go
-        Write-Status "Application built successfully"
+        $createUserQuery | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
+        Write-Status "Admin user created successfully"
     }
     catch {
-        Write-Error "Build failed"
-        return $false
+        Write-Warning "Failed to create admin user (might already exist)"
     }
     
     return $true
 }
 
-# Function to display summary
-function Show-Summary {
-    Write-Header "Setup Complete!"
-    Write-Host "==================" -ForegroundColor Cyan
-    Write-Host ""
+# Function to install dependencies and generate code
+function Install-Dependencies {
+    Write-Header "Installing Dependencies and Generating Code"
     
-    Write-Info "Database Status:"
-    docker-compose ps
-    Write-Host ""
+    # Install Go dependencies
+    Write-Info "Installing Go dependencies..."
+    go mod tidy
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install Go dependencies"
+        return $false
+    }
+    Write-Status "Go dependencies installed"
     
-    Write-Info "Default Admin Credentials:"
-    Write-Host "   Email: admin@example.com" -ForegroundColor White
-    Write-Host "   Password: password" -ForegroundColor White
-    Write-Host ""
+    # Install sqlc if not present
+    if (-not (Test-Command "sqlc")) {
+        Write-Info "Installing sqlc..."
+        go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to install sqlc"
+            return $false
+        }
+        Write-Status "sqlc installed"
+    }
+    else {
+        Write-Status "sqlc already installed"
+    }
     
+    # Generate database code
+    Write-Info "Generating database code..."
+    sqlc generate
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to generate database code"
+        return $false
+    }
+    Write-Status "Database code generated"
+    
+    return $true
+}
+
+# Function to build the application
+function Build-Application {
+    Write-Header "Building Application"
+    
+    # Create bin directory if it doesn't exist
+    if (-not (Test-Path "bin")) {
+        New-Item -ItemType Directory -Path "bin" | Out-Null
+    }
+    
+    # Build the application
+    Write-Info "Building application..."
+    go build -o bin/api cmd/main.go
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to build application"
+        return $false
+    }
+    
+    Write-Status "Application built successfully"
+    return $true
+}
+
+# Function to display completion message
+function Show-Completion {
+    Write-Header "🎉 Setup Complete!"
+    Write-Host ""
+    Write-Info "Your Go RBAC API is ready!"
+    Write-Host ""
+    Write-Info "Next steps:"
+    Write-Host "  1. go run cmd/main.go" -ForegroundColor White
+    Write-Host "  2. Or run the built binary: ./bin/api" -ForegroundColor White
+    Write-Host ""
+    Write-Info "The API will be available at:"
+    Write-Host "  http://localhost:8080" -ForegroundColor White
+    Write-Host ""
+    Write-Info "Default credentials:"
+    $adminEmail = [Environment]::GetEnvironmentVariable("ADMIN_EMAIL", "Process")
+    $adminPassword = [Environment]::GetEnvironmentVariable("ADMIN_PASSWORD", "Process")
+    Write-Host "  Email: $adminEmail" -ForegroundColor White
+    Write-Host "  Password: $adminPassword" -ForegroundColor White
+    Write-Host ""
     Write-Info "API Keys (for testing):"
-    Write-Host "   Admin API Key: admin_api_key_123" -ForegroundColor White
-    Write-Host "   Manager API Key: manager_api_key_456" -ForegroundColor White
+    Write-Host "  Admin: admin_api_key_123" -ForegroundColor White
+    Write-Host "  Manager: manager_api_key_456" -ForegroundColor White
     Write-Host ""
-    
-    Write-Info "To start the API server:"
-    Write-Host "   go run cmd/main.go" -ForegroundColor White
-    Write-Host "   or" -ForegroundColor White
-    Write-Host "   ./bin/api" -ForegroundColor White
+    Write-Info "Database:"
+    Write-Host "  Host: localhost:5432" -ForegroundColor White
+    Write-Host "  Database: go_rbac_db" -ForegroundColor White
+    Write-Host "  User: postgres" -ForegroundColor White
     Write-Host ""
-    
-    $serverPort = [Environment]::GetEnvironmentVariable("SERVER_PORT")
-    if (-not $serverPort) { $serverPort = "8080" }
-    
-    Write-Info "API will be available at:"
-    Write-Host "   http://localhost:$serverPort" -ForegroundColor White
-    Write-Host ""
-    
-    Write-Info "Available endpoints:"
-    Write-Host "   POST /auth/login - Login with email/password" -ForegroundColor White
-    Write-Host "   GET  /auth/me - Get current user info" -ForegroundColor White
-    Write-Host "   GET  /items/:table - Generic data access (products, customers, orders, etc.)" -ForegroundColor White
-    Write-Host "   GET  /health - Health check" -ForegroundColor White
-    Write-Host ""
-    
-    Write-Info "Useful commands:"
-    Write-Host "   docker-compose down - Stop database" -ForegroundColor White
-    Write-Host "   docker-compose up -d - Start database" -ForegroundColor White
-    Write-Host "   docker exec -it go-rbac-postgres psql -U postgres -d go_rbac_db - Connect to database" -ForegroundColor White
-    Write-Host ""
-    
-    Write-Status "You're all set! Run 'go run cmd/main.go' to start the API server."
+    Write-Status "Happy coding! 🚀"
 }
 
 # Main execution function
 function Start-Setup {
-    Write-Header "🚀 Dynamic Setup Script for Go RBAC API v$ScriptVersion"
+    Write-Header "🚀 Go RBAC API Setup v$ScriptVersion"
     Write-Host ""
     
     # Check prerequisites
@@ -465,77 +440,65 @@ function Start-Setup {
         exit 1
     }
     
-    # Setup repository
-    if (-not (Set-Repository)) {
+    # Setup environment
+    if (-not $SkipEnvCheck -and -not (Setup-Environment)) {
         exit 1
     }
     
-    # Validate environment
-    if (-not (Test-EnvironmentVariables)) {
-        exit 1
-    }
-    
-    # Stop and remove any existing containers
-    Write-Header "Cleaning up existing containers"
-    docker-compose down -v 2>$null
-    docker system prune -f 2>$null
-    
-    # Start fresh database
-    Write-Header "Starting PostgreSQL database"
-    try {
-        docker-compose up -d
-        Write-Status "Database started"
-    }
-    catch {
-        Write-Error "Failed to start database"
-        exit 1
-    }
-    
-    # Wait for database to be ready
-    Write-Info "Waiting for database to be ready..."
-    Start-Sleep -Seconds 10
-    
-    # Check database health
-    if (-not (Test-DatabaseHealth)) {
+    # Start Docker services
+    if (-not (Start-DockerServices)) {
         exit 1
     }
     
     # Apply migrations
-    if (-not (Invoke-Migrations)) {
-        Write-Warning "Some migrations had issues, but continuing..."
-    }
-    
-    # Build application
-    if (-not (Build-Application)) {
+    if (-not $SkipMigrations -and -not (Apply-Migrations)) {
         exit 1
     }
     
-    # Display summary
-    Show-Summary
+    # Create admin user
+    if (-not (Create-AdminUser)) {
+        exit 1
+    }
+    
+    # Install dependencies and generate code
+    if (-not (Install-Dependencies)) {
+        exit 1
+    }
+    
+    # Build application
+    if (-not $SkipBuild -and -not (Build-Application)) {
+        exit 1
+    }
+    
+    # Show completion message
+    Show-Completion
 }
 
 # Handle script arguments
 if ($Version) {
-    Write-Host "Setup Script v$ScriptVersion"
+    Write-Host "Setup v$ScriptVersion"
     exit 0
 }
 
 if ($Help) {
-    Write-Host "Usage: .\setup.ps1 [OPTIONS]"
-    Write-Host ""
-    Write-Host "Options:"
-    Write-Host "  -Version    Show version information"
-    Write-Host "  -Help       Show this help message"
+    Write-Host "Usage: .\setup.ps1 [options]"
     Write-Host ""
     Write-Host "This script will:"
     Write-Host "  - Check all prerequisites"
-    Write-Host "  - Clone/update the repository"
-    Write-Host "  - Validate environment variables"
-    Write-Host "  - Start a fresh PostgreSQL database"
-    Write-Host "  - Apply all migrations dynamically"
-    Write-Host "  - Install Go dependencies"
+    Write-Host "  - Setup environment variables"
+    Write-Host "  - Start Docker services"
+    Write-Host "  - Apply database migrations"
+    Write-Host "  - Create admin user"
+    Write-Host "  - Install dependencies"
     Write-Host "  - Generate database code"
     Write-Host "  - Build the application"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  -SkipEnvCheck    Skip environment variable setup"
+    Write-Host "  -SkipMigrations  Skip database migrations"
+    Write-Host "  -SkipBuild       Skip application build"
+    Write-Host "  -Version         Show version information"
+    Write-Host "  -Help            Show this help message"
     exit 0
 }
 
