@@ -1,19 +1,9 @@
-# Remote Installation Script for Go RBAC API (PowerShell)
-# Usage: powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.ps1 -UseBasicParsing | iex }"
-
-param(
-    [switch]$Help,
-    [switch]$Version
-)
+# Simple Remote Installation Script for Go RBAC API (PowerShell)
+# Usage: powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install-simple.ps1 -UseBasicParsing | iex }"
 
 # Script configuration
-$ScriptVersion = "1.0.0"
 $RepoUrl = "https://github.com/treyhulse/directus-clone.git"
-$RepoBranch = "main"
 $ProjectName = "directus-clone"
-$MinGoVersion = "1.21"
-$MinDockerVersion = "20.0"
-$MinDockerComposeVersion = "2.0"
 
 # Function to print colored output
 function Write-Status {
@@ -47,52 +37,6 @@ function Test-Command {
     return [bool](Get-Command -Name $CommandName -ErrorAction SilentlyContinue)
 }
 
-# Function to compare version numbers
-function Compare-Version {
-    param([string]$Version1, [string]$Version2)
-    
-    $v1 = [version]$Version1
-    $v2 = [version]$Version2
-    
-    if ($v1 -eq $v2) { return 0 }
-    if ($v1 -gt $v2) { return 1 }
-    return 2
-}
-
-# Function to get version of a command
-function Get-CommandVersion {
-    param([string]$Command, [string]$VersionFlag)
-    
-    if (Test-Command $Command) {
-        try {
-            $output = & $Command $VersionFlag 2>&1 | Select-Object -First 1
-            Write-Debug "Raw output for $Command $VersionFlag : $output"
-            
-            # Try different regex patterns for version extraction
-            $patterns = @(
-                '(\d+\.\d+(?:\.\d+)?)',  # Standard version format
-                'version (\d+\.\d+(?:\.\d+)?)',  # "version X.Y.Z" format
-                '(\d+\.\d+)',  # Just major.minor
-                '(\d+)'  # Just major version
-            )
-            
-            foreach ($pattern in $patterns) {
-                if ($output -match $pattern) {
-                    $version = $matches[1]
-                    if ($version -match '^\d+\.\d+(?:\.\d+)?$' -or $version -match '^\d+$') {
-                        Write-Debug "Found version: $version"
-                        return $version
-                    }
-                }
-            }
-        }
-        catch {
-            Write-Debug "Error getting version for $Command : $($_.Exception.Message)"
-        }
-    }
-    return ""
-}
-
 # Function to check prerequisites
 function Test-Prerequisites {
     Write-Header "Checking Prerequisites"
@@ -104,19 +48,7 @@ function Test-Prerequisites {
         $issues += "Go is not installed. Please install Go 1.21+ from https://golang.org/dl/"
     }
     else {
-        $goVersion = Get-CommandVersion "go" "version"
-        if ($goVersion) {
-            $compare = Compare-Version $goVersion $MinGoVersion
-            if ($compare -eq 2) {
-                $issues += "Go version $goVersion is older than required $MinGoVersion"
-            }
-            else {
-                Write-Status "Go $goVersion ✓"
-            }
-        }
-        else {
-            $issues += "Could not determine Go version"
-        }
+        Write-Status "Go ✓"
     }
     
     # Check Docker
@@ -124,44 +56,7 @@ function Test-Prerequisites {
         $issues += "Docker is not installed. Please install Docker Desktop from https://www.docker.com/products/docker-desktop/"
     }
     else {
-        # Try multiple ways to get Docker version
-        $dockerVersion = ""
-        
-        # Method 1: Try docker version
-        $dockerVersion = Get-CommandVersion "docker" "version"
-        
-        # Method 2: If that fails, try docker --version
-        if (-not $dockerVersion) {
-            $dockerVersion = Get-CommandVersion "docker" "--version"
-        }
-        
-        # Method 3: Try to parse from docker info
-        if (-not $dockerVersion) {
-            try {
-                $dockerInfo = docker info 2>&1 | Select-String "Server Version"
-                if ($dockerInfo -match '(\d+\.\d+(?:\.\d+)?)') {
-                    $dockerVersion = $matches[1]
-                }
-            }
-            catch {
-                # Ignore errors
-            }
-        }
-        
-        if ($dockerVersion) {
-            $compare = Compare-Version $dockerVersion $MinDockerVersion
-            if ($compare -eq 2) {
-                $issues += "Docker version $dockerVersion is older than required $MinDockerVersion"
-            }
-            else {
-                Write-Status "Docker $dockerVersion ✓"
-            }
-        }
-        else {
-            # If we can't determine version but Docker is installed, assume it's OK
-            Write-Warning "Could not determine Docker version, but Docker appears to be installed"
-            Write-Status "Docker (version unknown) ✓"
-        }
+        Write-Status "Docker ✓"
     }
     
     # Check Docker Compose
@@ -169,26 +64,7 @@ function Test-Prerequisites {
         $issues += "Docker Compose is not installed"
     }
     else {
-        $composeVersion = ""
-        if (Test-Command "docker-compose") {
-            $composeVersion = Get-CommandVersion "docker-compose" "version"
-        }
-        else {
-            $composeVersion = Get-CommandVersion "docker" "compose version"
-        }
-        
-        if ($composeVersion) {
-            $compare = Compare-Version $composeVersion $MinDockerComposeVersion
-            if ($compare -eq 2) {
-                $issues += "Docker Compose version $composeVersion is older than required $MinDockerComposeVersion"
-            }
-            else {
-                Write-Status "Docker Compose $composeVersion ✓"
-            }
-        }
-        else {
-            $issues += "Could not determine Docker Compose version"
-        }
+        Write-Status "Docker Compose ✓"
     }
     
     # Report issues
@@ -228,7 +104,7 @@ function Clone-Repository {
     
     Write-Info "Cloning $RepoUrl to $targetDir..."
     try {
-        git clone -b $RepoBranch $RepoUrl $targetDir
+        git clone $RepoUrl $targetDir
         Write-Status "Repository cloned successfully"
     }
     catch {
@@ -319,7 +195,7 @@ function Show-Completion {
 
 # Main execution function
 function Start-Installation {
-    Write-Header "🚀 Go RBAC API Installer v$ScriptVersion"
+    Write-Header "🚀 Go RBAC API Installer"
     Write-Host ""
     
     # Check prerequisites
@@ -339,27 +215,6 @@ function Start-Installation {
     
     # Show completion message
     Show-Completion
-}
-
-# Handle script arguments
-if ($Version) {
-    Write-Host "Installer v$ScriptVersion"
-    exit 0
-}
-
-if ($Help) {
-    Write-Host "Usage: powershell -ExecutionPolicy Bypass -Command `"& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.ps1 -UseBasicParsing | iex }`""
-    Write-Host ""
-    Write-Host "This script will:"
-    Write-Host "  - Check all prerequisites"
-    Write-Host "  - Clone the repository"
-    Write-Host "  - Run the setup script"
-    Write-Host "  - Build the application"
-    Write-Host ""
-    Write-Host "Options:"
-    Write-Host "  -Version    Show version information"
-    Write-Host "  -Help       Show this help message"
-    exit 0
 }
 
 # Run main installation

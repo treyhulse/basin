@@ -32,6 +32,10 @@ bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/
 
 **Windows (PowerShell):**
 ```powershell
+# Simple version (recommended)
+powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install-simple.ps1 -UseBasicParsing | iex }"
+
+# Full version with version checking
 powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.ps1 -UseBasicParsing | iex }"
 ```
 
