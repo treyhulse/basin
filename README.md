@@ -28,7 +28,7 @@ A Go-based REST API that provides Directus-style functionality with comprehensiv
 1. **Open a terminal/command prompt**
 2. **Run one command:**
    - **Unix/Linux/macOS:** `bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh)`
-   - **Windows:** `powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh -UseBasicParsing | iex }"`
+   - **Windows:** `powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.ps1 -UseBasicParsing | iex }"`
 3. **Wait for setup to complete**
 4. **🎉 Your API is automatically running at http://localhost:8080**
 
@@ -49,7 +49,7 @@ bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/
 
 #### **Windows:**
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh -UseBasicParsing | iex }"
+powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.ps1 -UseBasicParsing | iex }"
 ```
 
 **What this does automatically:**
