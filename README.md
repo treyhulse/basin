@@ -19,28 +19,54 @@ A Go-based REST API that provides Directus-style functionality with comprehensiv
 - Docker & Docker Compose
 - sqlc (optional, for code generation)
 
-## 🚀 **Getting Started - One Command Setup**
+## 🚀 **Getting Started - Super Simple Setup**
 
-### **🎯 Complete Setup (Recommended)**
+### **🎯 Two Commands to Get Everything Running**
 
-**Want to get up and running in 2 minutes with zero additional steps?**
+**Want to get up and running in 2 minutes?**
 
-1. **Open a terminal/command prompt**
-2. **Run one command:**
-   - **Unix/Linux/macOS:** `bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh)`
-   - **Windows:** `powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.ps1 -UseBasicParsing | iex }"`
-3. **Wait for setup to complete**
-4. **🎉 Your API is automatically running at http://localhost:8080**
+#### **Step 1: Clone the Repository**
+```bash
+git clone https://github.com/treyhulse/directus-clone.git
+cd directus-clone
+```
 
-**That's it!** Your API is ready with admin user, database, and all permissions set up - **no additional commands needed!**
+#### **Step 2: Run the Setup Script**
+**Windows:**
+```powershell
+.\setup.ps1
+```
+
+**Unix/Linux/macOS:**
+```bash
+./setup.sh
+```
+
+**That's it!** Your API will automatically start at http://localhost:8080
 
 ---
 
 ## 📋 **What the Setup Script Does**
 
-### **Complete One-Command Setup**
+The setup script automatically handles everything:
 
-**Start from any empty directory with a single command:**
+1. ✅ **Checks prerequisites** (Go, Docker, Docker Compose, Git)
+2. 🔍 **Sets up environment variables** (creates .env file)
+3. 📦 **Installs Go dependencies** (`go mod tidy`)
+4. 🔧 **Generates database code** (`sqlc generate`)
+5. 🐘 **Starts PostgreSQL database** (with health checks)
+6. 🗄️ **Applies all database migrations**
+7. 👤 **Creates admin user**
+8. 🔨 **Builds the application**
+9. 🚀 **Starts the API server automatically**
+
+**Perfect for:** New projects, demos, testing, learning - **zero additional steps needed!**
+
+---
+
+### **Alternative: One-Command Remote Setup**
+
+**Want to start from any empty directory?**
 
 #### **Unix/Linux/macOS:**
 ```bash
@@ -52,65 +78,7 @@ bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/
 powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.ps1 -UseBasicParsing | iex }"
 ```
 
-**What this does automatically:**
-1. ✅ **Checks prerequisites** (Go 1.21+, Docker, Docker Compose, Git)
-2. 🔄 **Clones the repository** (creates `directus-clone` directory)
-3. 🔍 **Sets up environment variables** (creates .env file with correct port config)
-4. 📦 **Installs Go dependencies** and **sqlc**
-5. 🔧 **Generates database code** with sqlc
-6. 🐘 **Starts PostgreSQL database** (with health checks and proper waiting)
-7. 🗄️ **Applies all database migrations** (dynamic discovery)
-8. 👤 **Creates admin user** (from environment variables)
-9. 🔨 **Builds the application**
-10. 🚀 **Starts the API server automatically**
-
-**Perfect for:** New projects, demos, testing, learning - **zero additional steps needed!**
-
----
-
-### **Local Setup (If you already have the code)**
-
-**If you've already cloned the repository:**
-
-#### **Windows:**
-```powershell
-# Method 1: PowerShell script
-.\setup.ps1
-
-# Method 2: Double-click (easiest)
-setup.bat
-
-# Method 3: With options
-.\setup.ps1 -Help
-.\setup.ps1 -SkipEnvCheck  # Skip environment setup
-.\setup.ps1 -SkipMigrations  # Skip database migrations
-.\setup.ps1 -SkipBuild  # Skip building the app
-```
-
-#### **Unix/Linux/macOS:**
-```bash
-# Method 1: Make executable and run
-chmod +x setup.sh
-./setup.sh
-
-# Method 2: Run directly with bash
-bash setup.sh
-
-# Method 3: With options
-./setup.sh --help
-./setup.sh --skip-migrations
-```
-
-**What this does:**
-1. ✅ **Checks prerequisites** (Go 1.21+, Docker, Docker Compose, Git)
-2. 🔍 **Sets up environment variables** (creates/validates .env file)
-3. 🐘 **Starts PostgreSQL database** (with health checks)
-4. 🗄️ **Applies all database migrations**
-5. 👤 **Creates admin user** (from environment variables)
-6. 📦 **Installs Go dependencies**
-7. 🔧 **Generates database code**
-8. 🔨 **Builds the application**
-9. 📋 **Shows you how to start the API**
+This will clone the repository and run the setup automatically.
 
 ---
 
