@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Dynamic Setup Script for Go RBAC API
-# This script is designed to be future-proof and handle various scenarios
+# Complete Setup Script for Go RBAC API
+# Usage: bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh)
 
-set -e  # Exit on any error
+set -e
 
 # Colors for output
 RED='\033[0;31m'
@@ -14,13 +14,8 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Script configuration
-SCRIPT_VERSION="2.0.0"
 REPO_URL="https://github.com/treyhulse/directus-clone.git"
-REPO_BRANCH="main"
-MIN_GO_VERSION="1.21"
-MIN_DOCKER_VERSION="20.0"
-MIN_DOCKER_COMPOSE_VERSION="2.0"
-REQUIRED_ENV_VARS=("DB_HOST" "DB_PORT" "DB_USER" "DB_PASSWORD" "DB_NAME" "JWT_SECRET" "SERVER_PORT")
+PROJECT_NAME="directus-clone"
 
 # Function to print colored output
 print_status() {
@@ -48,109 +43,6 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Function to compare version numbers
-version_compare() {
-    if [[ $1 == $2 ]]; then
-        return 0
-    fi
-    local IFS=.
-    local i ver1=($1) ver2=($2)
-    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
-        ver1[i]=0
-    done
-    for ((i=0; i<${#ver1[@]}; i++)); do
-        if [[ -z ${ver2[i]} ]]; then
-            ver2[i]=0
-        fi
-        if ((10#${ver1[i]} > 10#${ver2[i]})); then
-            return 1
-        fi
-        if ((10#${ver1[i]} < 10#${ver2[i]})); then
-            return 2
-        fi
-    done
-    return 0
-}
-
-# Function to get version of a command
-get_version() {
-    local cmd=$1
-    local version_flag=$2
-    
-    if command_exists "$cmd"; then
-        local version_output
-        version_output=$($cmd $version_flag 2>&1 | head -n 1)
-        echo "$version_output" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1
-    else
-        echo ""
-    fi
-}
-
-# Function to validate environment variables
-validate_env_vars() {
-    print_info "Validating environment variables..."
-    
-    local missing_vars=()
-    local invalid_vars=()
-    
-    # Check if .env file exists
-    if [[ ! -f ".env" ]]; then
-        print_warning ".env file not found. Creating from template..."
-        if [[ -f "env.example" ]]; then
-            cp env.example .env
-            print_status "Created .env from env.example"
-        else
-            print_error "No .env file and no env.example template found!"
-            return 1
-        fi
-    fi
-    
-    # Load environment variables
-    if [[ -f ".env" ]]; then
-        export $(grep -v '^#' .env | xargs)
-    fi
-    
-    # Check required variables
-    for var in "${REQUIRED_ENV_VARS[@]}"; do
-        if [[ -z "${!var}" ]]; then
-            missing_vars+=("$var")
-        fi
-    done
-    
-    # Validate specific variables
-    if [[ -n "$DB_PORT" ]] && ! [[ "$DB_PORT" =~ ^[0-9]+$ ]]; then
-        invalid_vars+=("DB_PORT must be a number")
-    fi
-    
-    if [[ -n "$SERVER_PORT" ]] && ! [[ "$SERVER_PORT" =~ ^[0-9]+$ ]]; then
-        invalid_vars+=("SERVER_PORT must be a number")
-    fi
-    
-    if [[ -n "$JWT_SECRET" ]] && [[ ${#JWT_SECRET} -lt 32 ]]; then
-        print_warning "JWT_SECRET is shorter than 32 characters (security risk)"
-    fi
-    
-    # Report issues
-    if [[ ${#missing_vars[@]} -gt 0 ]]; then
-        print_error "Missing required environment variables:"
-        for var in "${missing_vars[@]}"; do
-            echo "  - $var"
-        done
-        return 1
-    fi
-    
-    if [[ ${#invalid_vars[@]} -gt 0 ]]; then
-        print_error "Invalid environment variables:"
-        for var in "${invalid_vars[@]}"; do
-            echo "  - $var"
-        done
-        return 1
-    fi
-    
-    print_status "Environment variables validated"
-    return 0
-}
-
 # Function to check prerequisites
 check_prerequisites() {
     print_header "Checking Prerequisites"
@@ -159,80 +51,37 @@ check_prerequisites() {
     
     # Check Go
     if ! command_exists "go"; then
-        issues+=("Go is not installed")
+        issues+=("Go is not installed. Please install Go 1.21+ from https://golang.org/dl/")
     else
-        local go_version
-        go_version=$(get_version "go" "version")
-        if [[ -n "$go_version" ]]; then
-            version_compare "$go_version" "$MIN_GO_VERSION"
-            if [[ $? -eq 2 ]]; then
-                issues+=("Go version $go_version is older than required $MIN_GO_VERSION")
-            else
-                print_status "Go $go_version ✓"
-            fi
-        else
-            issues+=("Could not determine Go version")
-        fi
+        print_status "Go ✓"
     fi
     
     # Check Docker
     if ! command_exists "docker"; then
-        issues+=("Docker is not installed")
+        issues+=("Docker is not installed. Please install Docker from https://www.docker.com/products/docker-desktop/")
     else
-        local docker_version
-        docker_version=$(get_version "docker" "version")
-        if [[ -n "$docker_version" ]]; then
-            version_compare "$docker_version" "$MIN_DOCKER_VERSION"
-            if [[ $? -eq 2 ]]; then
-                issues+=("Docker version $docker_version is older than required $MIN_DOCKER_VERSION")
-            else
-                print_status "Docker $docker_version ✓"
-            fi
-        else
-            issues+=("Could not determine Docker version")
-        fi
+        print_status "Docker ✓"
     fi
     
     # Check Docker Compose
     if ! command_exists "docker-compose" && ! docker compose version >/dev/null 2>&1; then
         issues+=("Docker Compose is not installed")
     else
-        local compose_version
-        if command_exists "docker-compose"; then
-            compose_version=$(get_version "docker-compose" "version")
-        else
-            compose_version=$(get_version "docker" "compose version")
-        fi
-        if [[ -n "$compose_version" ]]; then
-            version_compare "$compose_version" "$MIN_DOCKER_COMPOSE_VERSION"
-            if [[ $? -eq 2 ]]; then
-                issues+=("Docker Compose version $compose_version is older than required $MIN_DOCKER_COMPOSE_VERSION")
-            else
-                print_status "Docker Compose $compose_version ✓"
-            fi
-        else
-            issues+=("Could not determine Docker Compose version")
-        fi
+        print_status "Docker Compose ✓"
     fi
     
-    # Check sqlc
-    if ! command_exists "sqlc"; then
-        print_warning "sqlc not found, will install during setup"
+    # Check Git
+    if ! command_exists "git"; then
+        issues+=("Git is not installed. Please install Git from https://git-scm.com/")
     else
-        local sqlc_version
-        sqlc_version=$(get_version "sqlc" "version")
-        if [[ -n "$sqlc_version" ]]; then
-            print_status "sqlc $sqlc_version ✓"
-        else
-            print_warning "Could not determine sqlc version"
-        fi
+        print_status "Git ✓"
     fi
     
     # Report issues
     if [[ ${#issues[@]} -gt 0 ]]; then
         print_error "Prerequisite issues found:"
         for issue in "${issues[@]}"; do
-            echo "  - $issue"
+            echo -e "  - ${RED}$issue${NC}"
         done
         echo ""
         print_info "Please install missing prerequisites and try again."
@@ -243,102 +92,85 @@ check_prerequisites() {
     return 0
 }
 
-# Function to clone or update repository
-setup_repository() {
-    print_header "Setting up Repository"
+# Function to clone repository
+clone_repository() {
+    print_header "Cloning Repository"
     
-    if [[ ! -d ".git" ]]; then
-        print_info "Not a git repository. Cloning from $REPO_URL..."
-        if git clone -b "$REPO_BRANCH" "$REPO_URL" .; then
-            print_status "Repository cloned successfully"
+    local target_dir="$PROJECT_NAME"
+    
+    # Check if directory already exists
+    if [[ -d "$target_dir" ]]; then
+        print_warning "Directory $target_dir already exists"
+        read -p "Do you want to remove it and start fresh? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Removing existing directory..."
+            rm -rf "$target_dir"
         else
-            print_error "Failed to clone repository"
-            return 1
+            print_error "Installation cancelled"
+            exit 1
         fi
+    fi
+    
+    print_info "Cloning $REPO_URL to $target_dir..."
+    if git clone "$REPO_URL" "$target_dir"; then
+        print_status "Repository cloned successfully"
     else
-        print_info "Git repository found. Checking for updates..."
-        git fetch origin
-        local current_branch
-        current_branch=$(git branch --show-current)
-        if [[ "$current_branch" != "$REPO_BRANCH" ]]; then
-            print_warning "Current branch is $current_branch, switching to $REPO_BRANCH"
-            git checkout "$REPO_BRANCH"
-        fi
-        git pull origin "$REPO_BRANCH"
-        print_status "Repository updated"
-    fi
-}
-
-# Function to find all migration files
-find_migrations() {
-    local migrations=()
-    if [[ -d "migrations" ]]; then
-        while IFS= read -r -d '' file; do
-            migrations+=("$file")
-        done < <(find migrations -name "*.sql" -type f -print0 | sort -z)
-    fi
-    echo "${migrations[@]}"
-}
-
-# Function to apply migrations
-apply_migrations() {
-    print_header "Applying Database Migrations"
-    
-    local migrations
-    readarray -t migrations < <(find_migrations)
-    
-    if [[ ${#migrations[@]} -eq 0 ]]; then
-        print_warning "No migration files found"
-        return 0
+        print_error "Failed to clone repository"
+        exit 1
     fi
     
-    print_info "Found ${#migrations[@]} migration files"
-    
-    for migration in "${migrations[@]}"; do
-        print_info "Applying $migration..."
-        if docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db < "$migration"; then
-            print_status "Applied $migration"
-        else
-            print_warning "Migration $migration had issues (this might be expected for duplicate entries)"
-        fi
-    done
+    # Change to project directory
+    cd "$target_dir"
+    print_status "Changed to project directory: $(pwd)"
 }
 
-# Function to check database health
-check_database_health() {
-    print_header "Checking Database Health"
+# Function to setup environment variables
+setup_environment() {
+    print_header "Setting Up Environment Variables"
     
-    local max_attempts=30
-    local attempt=0
+    # Create .env file with correct settings
+    cat > .env << 'EOF'
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=go_rbac_db
+DB_SSLMODE=disable
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_EXPIRY=24h
+
+# Server Configuration
+SERVER_PORT=8080
+SERVER_MODE=debug
+
+# Admin User Configuration
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=password
+ADMIN_FIRST_NAME=Admin
+ADMIN_LAST_NAME=User
+EOF
     
-    while [[ $attempt -lt $max_attempts ]]; do
-        attempt=$((attempt + 1))
-        print_info "Checking database connection (attempt $attempt/$max_attempts)..."
-        
-        if docker exec go-rbac-postgres pg_isready -U postgres >/dev/null 2>&1; then
-            print_status "Database is ready!"
-            return 0
-        fi
-        
-        if [[ $attempt -eq $max_attempts ]]; then
-            print_error "Database failed to start after $max_attempts attempts"
-            return 1
-        fi
-        
-        sleep 2
-    done
+    print_status "Created .env file with correct settings"
+    
+    # Load environment variables
+    export $(grep -v '^#' .env | xargs)
+    print_status "Environment variables loaded"
 }
 
-# Function to build application
-build_application() {
-    print_header "Building Application"
+# Function to install dependencies and generate code
+install_dependencies() {
+    print_header "Installing Dependencies and Generating Code"
     
     # Install Go dependencies
     print_info "Installing Go dependencies..."
     if go mod tidy; then
-        print_status "Dependencies installed"
+        print_status "Go dependencies installed"
     else
-        print_error "Failed to install dependencies"
+        print_error "Failed to install Go dependencies"
         return 1
     fi
     
@@ -351,6 +183,8 @@ build_application() {
             print_error "Failed to install sqlc"
             return 1
         fi
+    else
+        print_status "sqlc already installed"
     fi
     
     # Generate database code
@@ -362,65 +196,167 @@ build_application() {
         return 1
     fi
     
+    return 0
+}
+
+# Function to start Docker services
+start_docker_services() {
+    print_header "Starting Docker Services"
+    
+    # Stop any existing containers
+    print_info "Stopping any existing containers..."
+    docker-compose down >/dev/null 2>&1 || true
+    
+    # Start PostgreSQL
+    print_info "Starting PostgreSQL database..."
+    docker-compose up -d
+    
+    # Wait for database to be ready
+    print_info "Waiting for database to be ready..."
+    local max_attempts=30
+    local attempt=0
+    
+    while [[ $attempt -lt $max_attempts ]]; do
+        attempt=$((attempt + 1))
+        sleep 2
+        
+        if docker exec go-rbac-postgres pg_isready -U postgres >/dev/null 2>&1; then
+            print_status "Database is ready"
+            return 0
+        fi
+        
+        print_info "Attempt $attempt/$max_attempts - Database not ready yet..."
+    done
+    
+    print_error "Database failed to start within expected time"
+    return 1
+}
+
+# Function to apply migrations
+apply_migrations() {
+    print_header "Applying Database Migrations"
+    
+    # Get all migration files
+    local migrations=($(find migrations -name "*.sql" | sort))
+    
+    if [[ ${#migrations[@]} -eq 0 ]]; then
+        print_warning "No migration files found in migrations/ directory"
+        return 0
+    fi
+    
+    print_info "Found ${#migrations[@]} migration files"
+    
+    for migration in "${migrations[@]}"; do
+        print_info "Applying $(basename "$migration")..."
+        if docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db < "$migration"; then
+            print_status "Applied $(basename "$migration")"
+        else
+            print_warning "Migration $(basename "$migration") had issues (this might be expected)"
+        fi
+    done
+    
+    print_status "Migrations completed"
+    return 0
+}
+
+# Function to create admin user
+create_admin_user() {
+    print_header "Creating Admin User"
+    
+    local admin_email="${ADMIN_EMAIL:-admin@example.com}"
+    local admin_password="${ADMIN_PASSWORD:-password}"
+    local admin_first_name="${ADMIN_FIRST_NAME:-Admin}"
+    local admin_last_name="${ADMIN_LAST_NAME:-User}"
+    
+    print_info "Creating admin user: $admin_email"
+    
+    # Check if admin user already exists
+    local existing_count=$(docker exec go-rbac-postgres psql -U postgres -d go_rbac_db -t -c "SELECT COUNT(*) FROM users WHERE email = '$admin_email';" 2>/dev/null | tr -d ' ')
+    
+    if [[ "$existing_count" -gt 0 ]]; then
+        print_info "Admin user already exists"
+        return 0
+    fi
+    
+    # Create admin user with plain text password (will be hashed on first login)
+    local create_user_query="INSERT INTO users (id, email, password_hash, first_name, last_name, is_active, created_at, updated_at) VALUES (gen_random_uuid(), '$admin_email', '$admin_password', '$admin_first_name', '$admin_last_name', true, NOW(), NOW());"
+    
+    if echo "$create_user_query" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db; then
+        print_status "Admin user created successfully"
+    else
+        print_warning "Failed to create admin user (might already exist)"
+    fi
+    
+    return 0
+}
+
+# Function to build the application
+build_application() {
+    print_header "Building Application"
+    
+    # Create bin directory if it doesn't exist
+    mkdir -p bin
+    
     # Build the application
     print_info "Building application..."
     if go build -o bin/api cmd/main.go; then
         print_status "Application built successfully"
     else
-        print_error "Build failed"
+        print_error "Failed to build application"
         return 1
     fi
+    
+    return 0
 }
 
-# Function to display summary
-display_summary() {
-    print_header "Setup Complete!"
-    echo "=================="
+# Function to start the application
+start_application() {
+    print_header "Starting Your API"
+    
+    print_info "Starting the Go RBAC API..."
+    echo ""
+    echo -e "${GREEN}🚀 Your API is now running at: http://localhost:8080${NC}"
+    echo ""
+    echo -e "${NC}📋 Default credentials:${NC}"
+    echo -e "   Email: admin@example.com${NC}"
+    echo -e "   Password: password${NC}"
+    echo ""
+    echo -e "${NC}🔑 API Keys for testing:${NC}"
+    echo -e "   Admin: admin_api_key_123${NC}"
+    echo -e "   Manager: manager_api_key_456${NC}"
+    echo ""
+    echo -e "${NC}📚 API Documentation: http://localhost:8080${NC}"
+    echo ""
+    echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
     echo ""
     
-    print_info "Database Status:"
-    docker-compose ps
-    echo ""
-    
-    print_info "Default Admin Credentials:"
-    echo "   Email: admin@example.com"
-    echo "   Password: password"
-    echo ""
-    
-    print_info "API Keys (for testing):"
-    echo "   Admin API Key: admin_api_key_123"
-    echo "   Manager API Key: manager_api_key_456"
-    echo ""
-    
-    print_info "To start the API server:"
-    echo "   go run cmd/main.go"
-    echo "   or"
-    echo "   ./bin/api"
-    echo ""
-    
-    print_info "API will be available at:"
-    echo "   http://localhost:${SERVER_PORT:-8080}"
-    echo ""
-    
-    print_info "Available endpoints:"
-    echo "   POST /auth/login - Login with email/password"
-    echo "   GET  /auth/me - Get current user info"
-    echo "   GET  /items/:table - Generic data access (products, customers, orders, etc.)"
-    echo "   GET  /health - Health check"
-    echo ""
-    
-    print_info "Useful commands:"
-    echo "   docker-compose down - Stop database"
-    echo "   docker-compose up -d - Start database"
-    echo "   docker exec -it go-rbac-postgres psql -U postgres -d go_rbac_db - Connect to database"
-    echo ""
-    
-    print_status "You're all set! Run 'go run cmd/main.go' to start the API server."
+    # Start the application
+    go run cmd/main.go
 }
 
-# Main execution
+# Function to display completion message
+show_completion() {
+    print_header "🎉 Setup Complete!"
+    echo ""
+    print_info "Your Go RBAC API is ready!"
+    echo ""
+    print_info "What was set up:"
+    echo -e "  ${NC}✅ Repository cloned${NC}"
+    echo -e "  ${NC}✅ Environment variables configured${NC}"
+    echo -e "  ${NC}✅ Dependencies installed${NC}"
+    echo -e "  ${NC}✅ Database code generated${NC}"
+    echo -e "  ${NC}✅ PostgreSQL database started${NC}"
+    echo -e "  ${NC}✅ Database migrations applied${NC}"
+    echo -e "  ${NC}✅ Admin user created${NC}"
+    echo -e "  ${NC}✅ Application built${NC}"
+    echo ""
+    print_info "Starting your API now..."
+    echo ""
+}
+
+# Main execution function
 main() {
-    print_header "🚀 Dynamic Setup Script for Go RBAC API v$SCRIPT_VERSION"
+    print_header "🚀 Go RBAC API - Complete Setup"
     echo ""
     
     # Check prerequisites
@@ -428,42 +364,34 @@ main() {
         exit 1
     fi
     
-    # Setup repository
-    if ! setup_repository; then
+    # Clone repository
+    if ! clone_repository; then
         exit 1
     fi
     
-    # Validate environment
-    if ! validate_env_vars; then
+    # Setup environment
+    if ! setup_environment; then
         exit 1
     fi
     
-    # Stop and remove any existing containers
-    print_header "Cleaning up existing containers"
-    docker-compose down -v 2>/dev/null || true
-    docker system prune -f 2>/dev/null || true
-    
-    # Start fresh database
-    print_header "Starting PostgreSQL database"
-    if docker-compose up -d; then
-        print_status "Database started"
-    else
-        print_error "Failed to start database"
+    # Install dependencies and generate code
+    if ! install_dependencies; then
         exit 1
     fi
     
-    # Wait for database to be ready
-    print_info "Waiting for database to be ready..."
-    sleep 10
-    
-    # Check database health
-    if ! check_database_health; then
+    # Start Docker services
+    if ! start_docker_services; then
         exit 1
     fi
     
     # Apply migrations
     if ! apply_migrations; then
-        print_warning "Some migrations had issues, but continuing..."
+        exit 1
+    fi
+    
+    # Create admin user
+    if ! create_admin_user; then
+        exit 1
     fi
     
     # Build application
@@ -471,41 +399,12 @@ main() {
         exit 1
     fi
     
-    # Display summary
-    display_summary
+    # Show completion message
+    show_completion
+    
+    # Start the application
+    start_application
 }
 
-# Handle script arguments
-case "${1:-}" in
-    --version)
-        echo "Setup Script v$SCRIPT_VERSION"
-        exit 0
-        ;;
-    --help)
-        echo "Usage: $0 [OPTIONS]"
-        echo ""
-        echo "Options:"
-        echo "  --version    Show version information"
-        echo "  --help       Show this help message"
-        echo ""
-        echo "This script will:"
-        echo "  - Check all prerequisites"
-        echo "  - Clone/update the repository"
-        echo "  - Validate environment variables"
-        echo "  - Start a fresh PostgreSQL database"
-        echo "  - Apply all migrations dynamically"
-        echo "  - Install Go dependencies"
-        echo "  - Generate database code"
-        echo "  - Build the application"
-        exit 0
-        ;;
-    "")
-        # No arguments, run main setup
-        main
-        ;;
-    *)
-        print_error "Unknown option: $1"
-        echo "Use --help for usage information"
-        exit 1
-        ;;
-esac 
+# Run main installation
+main 

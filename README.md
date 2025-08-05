@@ -19,58 +19,56 @@ A Go-based REST API that provides Directus-style functionality with comprehensiv
 - Docker & Docker Compose
 - sqlc (optional, for code generation)
 
-## 🚀 **Getting Started - Choose Your Path**
+## 🚀 **Getting Started - One Command Setup**
 
-### **🎯 Quick Start (Recommended)**
+### **🎯 Complete Setup (Recommended)**
 
-**Want to get up and running in 2 minutes?**
+**Want to get up and running in 2 minutes with zero additional steps?**
 
 1. **Open a terminal/command prompt**
 2. **Run one command:**
-   - **Windows:** `powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install-simple.ps1 -UseBasicParsing | iex }"`
-   - **Mac/Linux:** `bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.sh)`
+   - **Unix/Linux/macOS:** `bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh)`
+   - **Windows:** `powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh -UseBasicParsing | iex }"`
 3. **Wait for setup to complete**
-4. **Run:** `go run cmd/main.go`
-5. **Visit:** `http://localhost:8080`
+4. **🎉 Your API is automatically running at http://localhost:8080**
 
-**That's it!** Your API is ready with admin user, database, and all permissions set up.
+**That's it!** Your API is ready with admin user, database, and all permissions set up - **no additional commands needed!**
 
 ---
 
-## 📋 **Detailed Setup Options**
+## 📋 **What the Setup Script Does**
 
-### **Option 1: One-Command Installation (Easiest)**
+### **Complete One-Command Setup**
 
 **Start from any empty directory with a single command:**
 
-#### **Windows (PowerShell):**
-```powershell
-# Simple version (recommended)
-powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install-simple.ps1 -UseBasicParsing | iex }"
-```
-
 #### **Unix/Linux/macOS:**
 ```bash
-bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.sh)
+bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh)
+```
+
+#### **Windows:**
+```powershell
+powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh -UseBasicParsing | iex }"
 ```
 
 **What this does automatically:**
-1. ✅ **Checks prerequisites** (Go 1.21+, Docker, Docker Compose)
+1. ✅ **Checks prerequisites** (Go 1.21+, Docker, Docker Compose, Git)
 2. 🔄 **Clones the repository** (creates `directus-clone` directory)
-3. 🔍 **Sets up environment variables** (creates .env file)
-4. 🐘 **Starts PostgreSQL database** (with health checks)
-5. 🗄️ **Applies all database migrations**
-6. 👤 **Creates admin user** (from environment variables)
-7. 📦 **Installs Go dependencies**
-8. 🔧 **Generates database code**
+3. 🔍 **Sets up environment variables** (creates .env file with correct port config)
+4. 📦 **Installs Go dependencies** and **sqlc**
+5. 🔧 **Generates database code** with sqlc
+6. 🐘 **Starts PostgreSQL database** (with health checks and proper waiting)
+7. 🗄️ **Applies all database migrations** (dynamic discovery)
+8. 👤 **Creates admin user** (from environment variables)
 9. 🔨 **Builds the application**
-10. 📋 **Shows you how to start the API**
+10. 🚀 **Starts the API server automatically**
 
-**Perfect for:** New projects, demos, testing, learning
+**Perfect for:** New projects, demos, testing, learning - **zero additional steps needed!**
 
 ---
 
-### **Option 2: Local Setup (If you already have the code)**
+### **Local Setup (If you already have the code)**
 
 **If you've already cloned the repository:**
 
