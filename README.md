@@ -13,11 +13,45 @@ A Go-based REST API that provides Directus-style functionality with comprehensiv
 - **⚡ Type-Safe DB Access** - Generated with sqlc for compile-time safety
 - **🐳 Docker Ready** - Easy development setup with Docker Compose
 
-## 📋 Prerequisites
+## 📋 **Prerequisites - Required Before Setup**
 
-- Go 1.21+
-- Docker & Docker Compose
-- sqlc (optional, for code generation)
+**⚠️ These must be installed and running BEFORE you start, or the setup will fail:**
+
+### **Required Software:**
+
+1. **🐳 Docker Desktop** - [Download here](https://www.docker.com/products/docker-desktop/)
+   - **Windows:** Install Docker Desktop and make sure it's running (check system tray)
+   - **macOS:** Install Docker Desktop and start it
+   - **Linux:** Install Docker Engine and Docker Compose
+
+2. **🐹 Go 1.21+** - [Download here](https://golang.org/dl/)
+   - Verify installation: `go version`
+
+3. **📦 Git** - [Download here](https://git-scm.com/)
+   - Verify installation: `git --version`
+
+### **Before Running Setup:**
+
+- ✅ **Docker Desktop is running** (check system tray on Windows)
+- ✅ **Go is installed** (`go version` works)
+- ✅ **Git is installed** (`git --version` works)
+- ✅ **Port 5432 is available** (stop any local PostgreSQL if running)
+
+**If any of these are missing, the setup script will fail and tell you what's missing.**
+
+### **Quick Verification (Optional)**
+Run these commands to verify everything is ready:
+```bash
+# Check Go
+go version
+
+# Check Docker
+docker --version
+docker ps
+
+# Check Git
+git --version
+```
 
 ## 🚀 **Getting Started - Super Simple Setup**
 
@@ -82,7 +116,7 @@ This will clone the repository and run the setup automatically.
 
 ---
 
-### **Option 3: Manual Setup (Advanced)**
+### **Manual Setup (Advanced)**
 
 **If you prefer to do everything manually:**
 
@@ -186,10 +220,21 @@ ADMIN_LAST_NAME=User
 #### **"Docker is not installed"**
 - **Solution:** Install Docker Desktop from https://www.docker.com/products/docker-desktop/
 - **Windows:** Make sure Docker Desktop is running (check system tray)
+- **Verify:** Run `docker --version` in terminal
+
+#### **"Docker Desktop is not running"**
+- **Solution:** 
+  1. Start Docker Desktop application
+  2. Wait for it to fully load (check system tray icon)
+  3. Verify with `docker ps` command
 
 #### **"Go is not installed"**
 - **Solution:** Install Go 1.21+ from https://golang.org/dl/
 - **Verify:** Run `go version` in terminal
+
+#### **"Git is not installed"**
+- **Solution:** Install Git from https://git-scm.com/
+- **Verify:** Run `git --version` in terminal
 
 #### **"docker-compose is not recognized"**
 - **Solution:** 
