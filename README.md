@@ -21,7 +21,38 @@ A Go-based REST API that provides Directus-style functionality with comprehensiv
 
 ## 🛠️ Quick Start
 
-### 🚀 One-Command Setup (Recommended)
+### 🚀 One-Command Installation (Recommended)
+
+**From anywhere, with a single command:**
+
+**Unix/Linux/macOS:**
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.sh)
+```
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/install.ps1 -UseBasicParsing | iex }"
+```
+
+This will:
+- ✅ **Check all prerequisites** (Go 1.21+, Docker 20.0+, Docker Compose 2.0+)
+- 🔄 **Clone the repository** (creates `directus-clone` directory)
+- 🔍 **Validate environment variables** (checks .env file and validates values)
+- 🐘 **Start a fresh PostgreSQL database** (with health checks)
+- 🗄️ **Apply all migrations dynamically** (finds and runs all .sql files in migrations/)
+- 📦 **Install Go dependencies** (go mod tidy)
+- 🔧 **Generate database code** (sqlc generate)
+- 🔨 **Build the application** (go build)
+- 📋 **Display all credentials and endpoints**
+
+**Perfect for:**
+- 🆕 **New projects** - Start from scratch in any directory
+- 🔄 **Quick demos** - Get up and running in minutes
+- 🧪 **Testing** - Fresh environment every time
+- 📚 **Learning** - No complex setup required
+
+### 🛠️ Local Setup (Alternative)
 
 **Windows:**
 ```powershell
@@ -30,6 +61,10 @@ A Go-based REST API that provides Directus-style functionality with comprehensiv
 
 # Or simply double-click:
 setup.bat
+
+# With options:
+.\setup.ps1 -Help
+.\setup.ps1 -Version
 ```
 
 **Unix/Linux/macOS:**
@@ -40,16 +75,29 @@ chmod +x setup.sh
 
 # Or run directly with bash
 bash setup.sh
+
+# With options:
+./setup.sh --help
+./setup.sh --version
 ```
 
 This will:
-- ✅ Check all prerequisites
-- 🐘 Start a fresh PostgreSQL database
-- 🗄️ Apply all migrations
-- 📦 Install Go dependencies
-- 🔧 Generate database code
-- 🔨 Build the application
-- 📋 Display all credentials and endpoints
+- ✅ **Check all prerequisites** (Go 1.21+, Docker 20.0+, Docker Compose 2.0+)
+- 🔄 **Clone/update repository** (automatically pulls latest changes)
+- 🔍 **Validate environment variables** (checks .env file and validates values)
+- 🐘 **Start a fresh PostgreSQL database** (with health checks)
+- 🗄️ **Apply all migrations dynamically** (finds and runs all .sql files in migrations/)
+- 📦 **Install Go dependencies** (go mod tidy)
+- 🔧 **Generate database code** (sqlc generate)
+- 🔨 **Build the application** (go build)
+- 📋 **Display all credentials and endpoints**
+
+**Dynamic Features:**
+- 🆕 **Future-proof**: Automatically handles new migration files
+- 🔧 **Environment validation**: Checks for required env vars and validates formats
+- 📊 **Version checking**: Ensures minimum versions of Go, Docker, etc.
+- 🔄 **Repository management**: Clones or updates from git automatically
+- 🛡️ **Error handling**: Comprehensive error checking and reporting
 
 ### Manual Setup
 ```bash
