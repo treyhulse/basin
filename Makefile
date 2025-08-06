@@ -1,76 +1,239 @@
-.PHONY: help dev build run test clean deps generate sqlc
+.PHONY: help setup start stop restart dev build test test-verbose test-coverage test-watch test-unit test-integration test-integration-full clean deps generate sqlc migrate docker-up docker-down docker-logs
 
 # Default target
 help:
-	@echo "Available commands:"
-	@echo "  dev       - Start development server with hot reload"
-	@echo "  build     - Build the application"
-	@echo "  run       - Run the application"
-	@echo "  test      - Run tests"
-	@echo "  clean     - Clean build artifacts"
-	@echo "  deps      - Download dependencies"
-	@echo "  generate  - Generate sqlc code"
-	@echo "  sqlc      - Run sqlc generate"
-	@echo "  docker-up - Start PostgreSQL with Docker"
-	@echo "  docker-down - Stop PostgreSQL"
+	@echo Basin API - Available Commands:
+	@echo.
+	@echo Setup ^& Start:
+	@echo   setup     - Complete initial setup (env, deps, docker, migrations, build)
+	@echo   start     - Cold start the application (docker, sqlc, build, run)
+	@echo   restart   - Stop and restart the application
+	@echo   dev       - Start development server with hot reload
+	@echo.
+	@echo Database Management:
+	@echo   migrate   - Apply database migrations (manual use only)
+	@echo   docker-up   - Start PostgreSQL with Docker
+	@echo   docker-down - Stop PostgreSQL
+	@echo   docker-logs - Show Docker logs
+	@echo.
+	@echo Build ^& Development:
+	@echo   build     - Build the application
+	@echo   test      - Run all tests (clean output)
+	@echo   test-verbose - Run tests with detailed output  
+	@echo   test-coverage - Run tests with coverage report
+	@echo   test-unit - Run unit tests only
+	@echo   test-integration - Run integration tests only (requires DB)
+	@echo   test-integration-full - Run integration tests with DB setup
+	@echo   clean     - Clean build artifacts
+	@echo   deps      - Download dependencies
+	@echo   generate  - Generate sqlc code
+	@echo   sqlc      - Run sqlc generate
+	@echo.
+	@echo Examples:
+	@echo   make setup   # First time setup
+	@echo   make start   # Start the application
+	@echo   make restart # Restart everything
 
-# Development server
+# Complete initial setup
+setup:
+	@echo Basin API - Complete Setup
+	@echo.
+	@echo Checking prerequisites...
+	@powershell -Command "if (-not (Get-Command 'go' -ErrorAction SilentlyContinue)) { Write-Host 'ERROR: Go is not installed' -ForegroundColor Red; exit 1 }"
+	@powershell -Command "if (-not (Get-Command 'docker' -ErrorAction SilentlyContinue)) { Write-Host 'ERROR: Docker is not installed' -ForegroundColor Red; exit 1 }"
+	@echo SUCCESS: Prerequisites check passed
+	@echo.
+	@echo Setting up environment...
+	@if not exist .env (copy env.example .env)
+	@echo SUCCESS: Environment configured
+	@echo.
+	@echo Installing dependencies...
+	@go mod tidy
+	@echo SUCCESS: Dependencies installed
+	@echo.
+	@echo Installing sqlc...
+	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+	@echo SUCCESS: sqlc installed
+	@echo.
+	@echo Starting database...
+	@docker-compose down 2>nul
+	@docker-compose up -d
+	@echo Waiting for database to be ready...
+	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
+	@echo.
+	@echo Applying migrations...
+	@for %%f in (migrations\*.sql) do @echo   Applying %%~nxf... && type "%%f" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
+	@echo SUCCESS: Migrations applied
+	@echo.
+	@echo Generating database code...
+	@sqlc generate
+	@echo SUCCESS: Database code generated
+	@echo.
+	@echo Building application...
+	@if not exist bin mkdir bin
+	@go build -o bin/api cmd/main.go
+	@echo SUCCESS: Application built
+	@echo.
+	@echo Setup complete! Run 'make start' to start the server.
+
+# Cold start the application
+start:
+	@echo Basin API - Cold Start
+	@echo.
+	@echo Stopping any existing containers...
+	@docker-compose down 2>nul
+	@echo.
+	@echo Starting database...
+	@docker-compose up -d
+	@echo Waiting for database to be ready...
+	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
+	@echo.
+	@echo Generating database code...
+	@sqlc generate
+	@echo SUCCESS: Database code generated
+	@echo.
+	@echo Building application...
+	@if not exist bin mkdir bin
+	@go build -o bin/api cmd/main.go
+	@echo SUCCESS: Application built
+	@echo.
+	@echo Starting Basin API server...
+	@echo Server will be available at: http://localhost:8080
+	@echo Health check: http://localhost:8080/health
+	@echo.
+	@echo Default admin credentials:
+	@echo   Email: admin@example.com
+	@echo   Password: password
+	@echo.
+	@echo Press Ctrl+C to stop the server
+	@echo ================================
+	@go run cmd/main.go
+
+# Restart the application
+restart: stop start
+
+# Stop the application
+stop:
+	@echo Stopping Basin API...
+	@docker-compose down
+	@echo SUCCESS: Application stopped
+
+# Development server with hot reload
 dev:
-	@echo "Starting development server..."
+	@echo Starting development server...
 	@go run cmd/main.go
 
 # Build the application
 build:
-	@echo "Building application..."
-	@go build -o bin/go-rbac-api cmd/main.go
+	@echo Building application...
+	@if not exist bin mkdir bin
+	@go build -o bin/api cmd/main.go
+	@echo SUCCESS: Application built
 
-# Run the application
-run: build
-	@echo "Running application..."
-	@./bin/go-rbac-api
-
-# Run tests
+# Run tests (clean output)
 test:
-	@echo "Running tests..."
+	@echo Running tests...
 	@go test ./...
+	@echo.
+	@echo Tests completed successfully!
+
+# Run tests with verbose output
+test-verbose:
+	@echo Running tests with verbose output...
+	@go test ./... -v
+
+# Run tests with coverage
+test-coverage:
+	@echo Running tests with coverage...
+	@go test ./... -coverprofile=coverage.out
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo.
+	@echo Coverage report generated: coverage.html
+
+# Run tests in watch mode (requires external tool)
+test-watch:
+	@echo Running tests in watch mode...
+	@echo Note: Install 'reflex' with 'go install github.com/cespare/reflex@latest'
+	@reflex -r '\\.go$$' -s -- go test ./... -v
+
+# Run only fast tests (exclude integration tests)
+test-unit:
+	@echo Running unit tests only...
+	@go test ./internal/... -v -short
+
+# Run only integration tests (requires database)
+test-integration:
+	@echo Running integration tests...
+	@echo Note: This requires a running database (use 'make setup' or 'make docker-up' first)
+	@go test ./internal/api/ -v -run "TestIntegration"
+
+# Run integration tests with database auto-setup
+test-integration-full:
+	@echo Running integration tests with database setup...
+	@echo Starting database if not running...
+	@docker-compose up -d
+	@echo Waiting for database to be ready...
+	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
+	@echo.
+	@echo Note: Integration tests require a running server on port 8080
+	@echo Start the server with: make start (in another terminal)
+	@echo.
+	@echo Running integration tests...
+	@go test ./internal/api/ -v -run "TestIntegration"
 
 # Clean build artifacts
 clean:
-	@echo "Cleaning build artifacts..."
-	@rm -rf bin/
+	@echo Cleaning build artifacts...
+	@if exist bin rmdir /s /q bin
 	@go clean
+	@echo SUCCESS: Cleaned
 
 # Download dependencies
 deps:
-	@echo "Downloading dependencies..."
+	@echo Downloading dependencies...
 	@go mod download
 	@go mod tidy
+	@echo SUCCESS: Dependencies updated
 
 # Generate sqlc code
 generate: sqlc
 
 # Run sqlc generate
 sqlc:
-	@echo "Generating sqlc code..."
+	@echo Generating sqlc code...
 	@sqlc generate
+	@echo SUCCESS: Database code generated
+
+# Apply database migrations (only if needed)
+migrate:
+	@echo Applying database migrations...
+	@echo Checking if database is running...
+	@docker exec go-rbac-postgres pg_isready -U postgres >nul 2>&1 || (echo Database not running, starting it... && docker-compose up -d)
+	@echo Waiting for database to be ready...
+	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
+	@echo.
+	@for %%f in (migrations\*.sql) do @echo   Applying %%~nxf... && type "%%f" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
+	@echo SUCCESS: Migrations applied
 
 # Start PostgreSQL with Docker
 docker-up:
-	@echo "Starting PostgreSQL with Docker..."
+	@echo Starting PostgreSQL with Docker...
 	@docker-compose up -d
+	@echo SUCCESS: Database started
 
 # Stop PostgreSQL
 docker-down:
-	@echo "Stopping PostgreSQL..."
+	@echo Stopping PostgreSQL...
 	@docker-compose down
+	@echo SUCCESS: Database stopped
 
-# Setup development environment
-setup: deps docker-up
-	@echo "Waiting for database to be ready..."
-	@sleep 5
-	@echo "Setup complete! Run 'make dev' to start the server."
+# Show Docker logs
+docker-logs:
+	@echo Showing Docker logs...
+	@docker-compose logs -f
 
 # Install sqlc (if not already installed)
 install-sqlc:
-	@echo "Installing sqlc..."
-	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest 
+	@echo Installing sqlc...
+	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+	@echo SUCCESS: sqlc installed 

@@ -65,54 +65,63 @@ git clone https://github.com/treyhulse/directus-clone.git
 cd directus-clone
 ```
 
-#### **Step 2: Run the Setup Script**
-**Windows:**
-```powershell
-.\setup.ps1
-```
-
-**Unix/Linux/macOS:**
+#### **Step 2: Run the Setup Command**
 ```bash
-./setup.sh
+make setup
 ```
 
 **That's it!** Your API will automatically start at http://localhost:8080
 
+#### **Step 3: Start the Application (after setup)**
+```bash
+make start
+```
+
 ---
 
-## 📋 **What the Setup Script Does**
+## 📋 **What the Setup Command Does**
 
-The setup script automatically handles everything:
+The `make setup` command automatically handles everything:
 
 1. ✅ **Checks prerequisites** (Go, Docker, Docker Compose, Git)
 2. 🔍 **Sets up environment variables** (creates .env file)
 3. 📦 **Installs Go dependencies** (`go mod tidy`)
-4. 🔧 **Generates database code** (`sqlc generate`)
+4. 🔧 **Installs sqlc** (database code generator)
 5. 🐘 **Starts PostgreSQL database** (with health checks)
 6. 🗄️ **Applies all database migrations**
-7. 👤 **Creates admin user**
-8. 🔨 **Builds the application**
-9. 🚀 **Starts the API server automatically**
+7. 🔨 **Generates database code** (`sqlc generate`)
+8. 🏗️ **Builds the application**
 
 **Perfect for:** New projects, demos, testing, learning - **zero additional steps needed!**
 
+### **Daily Development Commands**
+After initial setup, use these commands for daily development:
+
+```bash
+make start    # Start the application (cold start)
+make dev      # Start development server  
+make stop     # Stop the application
+make restart  # Restart everything
+```
+
 ---
 
-### **Alternative: One-Command Remote Setup**
+### **Installing Make on Windows**
 
-**Want to start from any empty directory?**
+If you're on Windows and don't have Make installed, you can install it using Scoop:
 
-#### **Unix/Linux/macOS:**
-```bash
-bash <(curl -sL https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.sh)
-```
-
-#### **Windows:**
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/treyhulse/directus-clone/main/setup.ps1 -UseBasicParsing | iex }"
+# Install Scoop first (if not already installed)
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+Invoke-RestMethod get.scoop.sh | Invoke-Expression
+
+# Install Make
+scoop install make
 ```
 
-This will clone the repository and run the setup automatically.
+**Alternative package managers:**
+- **Chocolatey:** `choco install make`
+- **WSL:** `sudo apt-get install make`
 
 ---
 
@@ -130,52 +139,32 @@ cp env.example .env
 # Edit .env with your preferred settings
 
 # 3. Start the database
-docker-compose up -d
+make docker-up
 
-# 4. Wait for database to be ready (about 15 seconds)
-# Then apply migrations
-docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db < migrations/001_init.sql
-docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db < migrations/002_api_keys.sql
-docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db < migrations/003_admin_permissions.sql
+# 4. Apply migrations
+make migrate
 
 # 5. Install Go dependencies
-go mod tidy
+make deps
 
-# 6. Install sqlc (if not already installed)
-go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+# 6. Generate database code
+make generate
 
-# 7. Generate database code
-sqlc generate
+# 7. Build the application
+make build
 
-# 8. Build the application
-go build -o bin/api cmd/main.go
-
-# 9. Run the application
-go run cmd/main.go
-
-## 🚀 Quick Start Scripts
-
-For convenience, you can use the provided start scripts that handle everything automatically:
-
-### Windows (PowerShell):
-```powershell
-.\start.ps1
+# 8. Run the application
+make dev
 ```
 
-### Linux/macOS (Bash):
-```bash
-./start.sh
-```
-
-These scripts will:
-1. ✅ Start Docker containers
-2. ✅ Wait for PostgreSQL to be ready
-3. ✅ Apply all database migrations
-4. ✅ Generate SQLC code
-5. ✅ Start the API server
-
-The server will be available at `http://localhost:8080`
-```
+**Or use individual Make commands:**
+- `make help` - Show all available commands
+- `make docker-up` - Start database
+- `make migrate` - Apply migrations  
+- `make deps` - Install dependencies
+- `make generate` - Generate database code
+- `make build` - Build application
+- `make dev` - Start development server
 
 ---
 
@@ -184,12 +173,16 @@ The server will be available at `http://localhost:8080`
 **Once setup is complete, start your API:**
 
 ```bash
-# Option 1: Run directly
+# Recommended: Use Make commands
+make start    # Cold start (stops containers, starts fresh)
+make dev      # Development server (just runs the app)
+
+# Alternative: Run directly  
 go run cmd/main.go
 
-# Option 2: Run the built binary
-./bin/api  # Linux/macOS
-.\bin\api.exe  # Windows
+# Alternative: Run the built binary
+./bin/api     # Linux/macOS
+.\bin\api.exe # Windows
 ```
 
 **Your API will be available at:** `http://localhost:8080`
@@ -208,41 +201,38 @@ go run cmd/main.go
 
 **Need to quickly start/stop your database?**
 
-### **Stop Everything:**
+### **Using Make Commands (Recommended):**
+```bash
+make stop         # Stop everything
+make docker-up    # Start database only
+make docker-down  # Stop database only
+make docker-logs  # View database logs
+make restart      # Stop and restart everything
+```
+
+### **Direct Docker Commands:**
 ```bash
 # Stop the database (keeps data intact)
 docker-compose down
-```
 
-### **Start Everything:**
-```bash
 # Start the database back up
 docker-compose up -d
-```
 
-### **Restart Everything:**
-```bash
 # Restart in one command
 docker-compose restart
-```
 
-### **Check Status:**
-```bash
 # See what's running
 docker-compose ps
 # or
 docker ps
-```
 
-### **Complete Reset (Nuclear Option):**
-```bash
-# Stop and remove everything (⚠️ DELETES ALL DATA!)
+# Complete reset (⚠️ DELETES ALL DATA!)
 docker-compose down -v
 # Then start fresh
 docker-compose up -d
 ```
 
-**💡 Pro Tip:** The database data persists between stops/starts, so you won't lose your data when using `docker-compose down` and `docker-compose up -d`.
+**💡 Pro Tip:** The database data persists between stops/starts, so you won't lose your data when using `make stop` and `make start`.
 
 ---
 
@@ -337,15 +327,31 @@ ADMIN_LAST_NAME=User
 
 ---
 
-### **Option C: Install Make on Windows (Optional)**
+### **Quick Commands Reference**
 
-If you prefer to use the make commands on Windows, you can install `make`:
+```bash
+# First time setup
+make setup
 
-- **Using Chocolatey**: `choco install make`
-- **Using Scoop**: `scoop install make`
-- **Using WSL**: Install Ubuntu and use `sudo apt-get install make`
+# Daily development
+make start     # Cold start everything
+make dev       # Just run the app (database should be running)
+make stop      # Stop everything
+make restart   # Restart everything
 
-Then follow Option A above.
+# Database management
+make migrate       # Apply new migrations
+make docker-up     # Start database only
+make docker-down   # Stop database only
+make docker-logs   # View database logs
+
+# Development tasks
+make build     # Build the application
+make test      # Run tests
+make clean     # Clean build artifacts
+make deps      # Update dependencies
+make generate  # Regenerate database code
+```
 
 The API will be available at `http://localhost:8080`
 
@@ -557,24 +563,28 @@ go-rbac-api/
 
 ### Available Commands
 
-#### Make Commands (Linux/macOS or Windows with make installed)
-- `make help` - Show available commands
+#### Make Commands (Recommended)
+- `make help` - Show all available commands
+- `make setup` - Complete initial setup (first time only)
+- `make start` - Cold start the application
 - `make dev` - Start development server
+- `make stop` - Stop the application
+- `make restart` - Stop and restart everything
 - `make build` - Build the application
-- `make run` - Run the built application
 - `make test` - Run tests
 - `make clean` - Clean build artifacts
 - `make deps` - Download dependencies
-- `make sqlc` - Generate database code
+- `make generate` - Generate database code
+- `make migrate` - Apply database migrations
 - `make docker-up` - Start PostgreSQL
 - `make docker-down` - Stop PostgreSQL
-- `make setup` - Complete development setup
+- `make docker-logs` - Show Docker logs
 
-#### Direct Commands (Windows without make)
+#### Direct Commands (Alternative)
 - `go mod tidy` - Download dependencies
 - `go run cmd/main.go` - Start development server
-- `go build -o app.exe cmd/main.go` - Build the application
-- `./app.exe` - Run the built application
+- `go build -o bin/api cmd/main.go` - Build the application
+- `./bin/api` - Run the built application
 - `go test ./...` - Run tests
 - `sqlc generate` - Generate database code
 - `docker-compose up -d` - Start PostgreSQL

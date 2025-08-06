@@ -1280,7 +1280,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const getUserRoles = `-- name: GetUserRoles :many
-SELECT r.id, r.name, r.description, r.created_at, r.updated_at FROM roles r
+SELECT r.id, r.name, r.description, r.created_at, r.updated_at, r.tenant_id FROM roles r
 JOIN user_roles ur ON r.id = ur.role_id
 WHERE ur.user_id = $1
 `
@@ -1300,6 +1300,7 @@ func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, e
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}

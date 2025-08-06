@@ -115,6 +115,8 @@ type Role struct {
 	Description sql.NullString `json:"description"`
 	CreatedAt   sql.NullTime   `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	// Tenant isolation for roles - each tenant has its own set of roles
+	TenantID uuid.UUID `json:"tenant_id"`
 }
 
 type Tenant struct {
