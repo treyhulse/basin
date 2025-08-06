@@ -497,7 +497,37 @@ INSERT INTO permissions (role_id, table_name, action, allowed_fields)
 VALUES (sales_role_id, 'products', 'read', ARRAY['id', 'name', 'description', 'price', 'category']);
 ```
 
-## 🧪 Testing the API
+## 🧪 Testing
+
+### Automated Testing
+
+The project includes comprehensive integration tests that test the real API against a running server and database:
+
+```bash
+# Run all tests
+make test
+
+# Run with verbose output
+make test-verbose
+
+# Run with coverage report
+make test-coverage
+
+# Run integration tests specifically
+make test-integration
+
+# Run integration tests with automatic database setup
+make test-integration-full
+```
+
+**Integration tests cover:**
+- ✅ Real authentication flows (login, JWT validation)
+- ✅ All API endpoints with actual database operations
+- ✅ Role-based access control with real permissions
+- ✅ Error handling and edge cases
+- ✅ End-to-end functionality
+
+### Manual API Testing
 
 ### 1. Login as Admin
 
@@ -697,7 +727,7 @@ For support and questions:
 
 ## 🔄 Roadmap
 
-- [ ] Add more comprehensive tests
+- [x] Add comprehensive integration tests
 - [ ] Implement real-time subscriptions
 - [ ] Add GraphQL support
 - [ ] Implement file upload functionality
