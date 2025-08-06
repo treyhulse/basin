@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"strings"
 	"time"
@@ -73,7 +75,9 @@ func AuthMiddleware(cfg *config.Config, db *db.DB) gin.HandlerFunc {
 		}
 
 		// If JWT validation failed, try API key authentication
-		apiKey, err := db.Queries.GetAPIKeyByHash(c.Request.Context(), tokenString)
+		// Hash the API key to match what's stored in the database
+		keyHash := hashAPIKey(tokenString)
+		apiKey, err := db.Queries.GetAPIKeyByHash(c.Request.Context(), keyHash)
 		if err == nil && apiKey.IsActive.Bool {
 			// Check if API key is expired
 			if apiKey.ExpiresAt.Valid && apiKey.ExpiresAt.Time.Before(time.Now()) {
@@ -126,4 +130,10 @@ func GetEmail(c *gin.Context) (string, bool) {
 	}
 
 	return "", false
+}
+
+// hashAPIKey creates a SHA-256 hash of the API key for secure storage
+func hashAPIKey(apiKey string) string {
+	hash := sha256.Sum256([]byte(apiKey))
+	return hex.EncodeToString(hash[:])
 }

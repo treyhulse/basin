@@ -98,4 +98,106 @@ UPDATE api_keys SET name = $2, is_active = $3, expires_at = $4, updated_at = CUR
 DELETE FROM api_keys WHERE id = $1;
 
 -- name: GetAPIKeyByID :one
-SELECT * FROM api_keys WHERE id = $1; 
+SELECT * FROM api_keys WHERE id = $1;
+
+-- Schema Management Queries
+-- name: GetCollections :many
+SELECT * FROM collections ORDER BY name;
+
+-- name: GetCollection :one
+SELECT * FROM collections WHERE id = $1;
+
+-- name: CreateCollection :one
+INSERT INTO collections (id, name, display_name, description, icon, is_system, tenant_id, created_by) 
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+
+-- name: UpdateCollection :one
+UPDATE collections 
+SET display_name = $2, description = $3, icon = $4, updated_at = CURRENT_TIMESTAMP, updated_by = $5
+WHERE id = $1 RETURNING *;
+
+-- name: DeleteCollection :exec
+DELETE FROM collections WHERE id = $1;
+
+-- name: GetFields :many
+SELECT * FROM fields ORDER BY sort_order;
+
+-- name: GetFieldsByCollection :many
+SELECT * FROM fields WHERE collection_id = $1 ORDER BY sort_order;
+
+-- name: GetField :one
+SELECT * FROM fields WHERE id = $1;
+
+-- name: CreateField :one
+INSERT INTO fields (id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, relation_config, sort_order, tenant_id) 
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
+
+-- name: UpdateField :one
+UPDATE fields 
+SET display_name = $2, type = $3, is_primary = $4, is_required = $5, is_unique = $6, default_value = $7, validation_rules = $8, relation_config = $9, sort_order = $10, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 RETURNING *;
+
+-- name: DeleteField :exec
+DELETE FROM fields WHERE id = $1;
+
+-- Tenant Management Queries
+-- name: GetTenants :many
+SELECT * FROM tenants ORDER BY name;
+
+-- name: GetTenant :one
+SELECT * FROM tenants WHERE id = $1;
+
+-- name: GetTenantBySlug :one
+SELECT * FROM tenants WHERE slug = $1;
+
+-- name: CreateTenant :one
+INSERT INTO tenants (id, name, slug, domain, settings) VALUES ($1, $2, $3, $4, $5) RETURNING *;
+
+-- name: UpdateTenant :one
+UPDATE tenants SET name = $2, slug = $3, domain = $4, settings = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *;
+
+-- name: DeleteTenant :exec
+DELETE FROM tenants WHERE id = $1;
+
+-- Enhanced User Queries with Tenant Support
+-- name: GetUsersByTenant :many
+SELECT * FROM users WHERE tenant_id = $1 ORDER BY email;
+
+-- name: GetUserWithTenant :one
+SELECT u.*, t.name as tenant_name, t.slug as tenant_slug 
+FROM users u 
+JOIN tenants t ON u.tenant_id = t.id 
+WHERE u.id = $1;
+
+-- name: CreateUser :one
+INSERT INTO users (id, email, password_hash, first_name, last_name, tenant_id) 
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
+
+-- name: UpdateUser :one
+UPDATE users 
+SET email = $2, first_name = $3, last_name = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP 
+WHERE id = $1 RETURNING *;
+
+-- name: DeleteUser :exec
+DELETE FROM users WHERE id = $1;
+
+-- Enhanced Permission Queries with Tenant Support
+-- name: GetPermissionsByRoleAndTenant :many
+SELECT * FROM permissions WHERE role_id = $1 AND tenant_id = $2;
+
+-- name: GetPermissionsByUserAndTenant :many
+SELECT p.* FROM permissions p
+JOIN user_roles ur ON p.role_id = ur.role_id
+WHERE ur.user_id = $1 AND p.tenant_id = $2;
+
+-- name: CreatePermission :one
+INSERT INTO permissions (id, role_id, table_name, action, field_filter, allowed_fields, tenant_id) 
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+
+-- name: UpdatePermission :one
+UPDATE permissions 
+SET field_filter = $2, allowed_fields = $3, updated_at = CURRENT_TIMESTAMP 
+WHERE id = $1 RETURNING *;
+
+-- name: DeletePermission :exec
+DELETE FROM permissions WHERE id = $1; 

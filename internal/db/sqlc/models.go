@@ -23,6 +23,20 @@ type ApiKey struct {
 	UpdatedAt  sql.NullTime `json:"updated_at"`
 }
 
+type Collection struct {
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	DisplayName sql.NullString `json:"display_name"`
+	Description sql.NullString `json:"description"`
+	Icon        sql.NullString `json:"icon"`
+	IsSystem    sql.NullBool   `json:"is_system"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	TenantID    uuid.NullUUID  `json:"tenant_id"`
+	CreatedBy   uuid.NullUUID  `json:"created_by"`
+	UpdatedBy   uuid.NullUUID  `json:"updated_by"`
+}
+
 type Customer struct {
 	ID        uuid.UUID      `json:"id"`
 	FirstName string         `json:"first_name"`
@@ -32,6 +46,24 @@ type Customer struct {
 	Address   sql.NullString `json:"address"`
 	CreatedAt sql.NullTime   `json:"created_at"`
 	UpdatedAt sql.NullTime   `json:"updated_at"`
+}
+
+type Field struct {
+	ID              uuid.UUID             `json:"id"`
+	CollectionID    uuid.NullUUID         `json:"collection_id"`
+	Name            string                `json:"name"`
+	DisplayName     sql.NullString        `json:"display_name"`
+	Type            string                `json:"type"`
+	IsPrimary       sql.NullBool          `json:"is_primary"`
+	IsRequired      sql.NullBool          `json:"is_required"`
+	IsUnique        sql.NullBool          `json:"is_unique"`
+	DefaultValue    sql.NullString        `json:"default_value"`
+	ValidationRules pqtype.NullRawMessage `json:"validation_rules"`
+	RelationConfig  pqtype.NullRawMessage `json:"relation_config"`
+	SortOrder       sql.NullInt32         `json:"sort_order"`
+	CreatedAt       sql.NullTime          `json:"created_at"`
+	UpdatedAt       sql.NullTime          `json:"updated_at"`
+	TenantID        uuid.NullUUID         `json:"tenant_id"`
 }
 
 type Order struct {
@@ -63,6 +95,7 @@ type Permission struct {
 	AllowedFields []string              `json:"allowed_fields"`
 	CreatedAt     sql.NullTime          `json:"created_at"`
 	UpdatedAt     sql.NullTime          `json:"updated_at"`
+	TenantID      uuid.NullUUID         `json:"tenant_id"`
 }
 
 type Product struct {
@@ -84,6 +117,17 @@ type Role struct {
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
 }
 
+type Tenant struct {
+	ID        uuid.UUID             `json:"id"`
+	Name      string                `json:"name"`
+	Slug      string                `json:"slug"`
+	Domain    sql.NullString        `json:"domain"`
+	Settings  pqtype.NullRawMessage `json:"settings"`
+	IsActive  sql.NullBool          `json:"is_active"`
+	CreatedAt sql.NullTime          `json:"created_at"`
+	UpdatedAt sql.NullTime          `json:"updated_at"`
+}
+
 type User struct {
 	ID           uuid.UUID      `json:"id"`
 	Email        string         `json:"email"`
@@ -93,6 +137,7 @@ type User struct {
 	IsActive     sql.NullBool   `json:"is_active"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	TenantID     uuid.NullUUID  `json:"tenant_id"`
 }
 
 type UserRole struct {

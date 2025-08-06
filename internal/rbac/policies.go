@@ -27,25 +27,65 @@ func (pc *PolicyChecker) CheckPermission(ctx context.Context, userID uuid.UUID, 
 		return false, nil, fmt.Errorf("failed to get user roles: %w", err)
 	}
 
-	// Check permissions for each role
+	// Get user's tenant ID
+	user, err := pc.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Check permissions for each role with tenant isolation
 	for _, role := range roles {
-		params := sqlc.GetPermissionsByRoleAndActionParams{
-			RoleID:    uuid.NullUUID{UUID: role.ID, Valid: true},
-			TableName: tableName,
-			Action:    action,
-		}
-		permissions, err := pc.db.GetPermissionsByRoleAndAction(ctx, params)
+		// Check permissions for this role and tenant
+		permissions, err := pc.db.GetPermissionsByRoleAndTenant(ctx, sqlc.GetPermissionsByRoleAndTenantParams{
+			RoleID:   uuid.NullUUID{UUID: role.ID, Valid: true},
+			TenantID: user.TenantID,
+		})
 		if err != nil {
 			continue // Skip this role if there's an error
 		}
 
 		for _, permission := range permissions {
-			// If we find any permission, the user is allowed
-			allowedFields := permission.AllowedFields
-			if len(allowedFields) == 0 {
-				allowedFields = []string{"*"} // Default to all fields
+			// Check if permission matches table and action
+			if permission.TableName == tableName && permission.Action == action {
+				allowedFields := permission.AllowedFields
+				if len(allowedFields) == 0 {
+					allowedFields = []string{"*"} // Default to all fields
+				}
+				return true, allowedFields, nil
 			}
-			return true, allowedFields, nil
+		}
+	}
+
+	return false, nil, nil
+}
+
+// CheckPermissionWithTenant checks if a user has permission with explicit tenant context
+func (pc *PolicyChecker) CheckPermissionWithTenant(ctx context.Context, userID, tenantID uuid.UUID, tableName, action string) (bool, []string, error) {
+	// Get user roles
+	roles, err := pc.db.GetUserRoles(ctx, userID)
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	// Check permissions for each role with specific tenant
+	for _, role := range roles {
+		permissions, err := pc.db.GetPermissionsByRoleAndTenant(ctx, sqlc.GetPermissionsByRoleAndTenantParams{
+			RoleID:   uuid.NullUUID{UUID: role.ID, Valid: true},
+			TenantID: uuid.NullUUID{UUID: tenantID, Valid: true},
+		})
+		if err != nil {
+			continue // Skip this role if there's an error
+		}
+
+		for _, permission := range permissions {
+			// Check if permission matches table and action
+			if permission.TableName == tableName && permission.Action == action {
+				allowedFields := permission.AllowedFields
+				if len(allowedFields) == 0 {
+					allowedFields = []string{"*"} // Default to all fields
+				}
+				return true, allowedFields, nil
+			}
 		}
 	}
 
@@ -152,4 +192,28 @@ func BuildSelectQuery(tableName string, allowedFields []string) string {
 	}
 
 	return fmt.Sprintf("SELECT %s FROM %s", strings.Join(fields, ", "), tableName)
+}
+
+// BuildSelectQueryWithTenant builds a safe SELECT query with tenant schema
+func BuildSelectQueryWithTenant(tenantSchema, tableName string, allowedFields []string) string {
+	fullTableName := fmt.Sprintf("%s.data_%s", tenantSchema, tableName)
+
+	if len(allowedFields) == 0 {
+		return fmt.Sprintf("SELECT * FROM %s", fullTableName)
+	}
+
+	// Check if all fields are allowed
+	for _, field := range allowedFields {
+		if field == "*" {
+			return fmt.Sprintf("SELECT * FROM %s", fullTableName)
+		}
+	}
+
+	// Build field list
+	fields := make([]string, len(allowedFields))
+	for i, field := range allowedFields {
+		fields[i] = fmt.Sprintf(`"%s"`, field)
+	}
+
+	return fmt.Sprintf("SELECT %s FROM %s", strings.Join(fields, ", "), fullTableName)
 }

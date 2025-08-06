@@ -12,21 +12,37 @@ import (
 
 type Querier interface {
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
+	CreateCollection(ctx context.Context, arg CreateCollectionParams) (Collection, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
+	CreateField(ctx context.Context, arg CreateFieldParams) (Field, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
+	CreatePermission(ctx context.Context, arg CreatePermissionParams) (Permission, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
+	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteAPIKey(ctx context.Context, id uuid.UUID) error
+	DeleteCollection(ctx context.Context, id uuid.UUID) error
 	DeleteCustomer(ctx context.Context, id uuid.UUID) error
+	DeleteField(ctx context.Context, id uuid.UUID) error
 	DeleteOrder(ctx context.Context, id uuid.UUID) error
 	DeleteOrderItem(ctx context.Context, id uuid.UUID) error
+	DeletePermission(ctx context.Context, id uuid.UUID) error
 	DeleteProduct(ctx context.Context, id uuid.UUID) error
+	DeleteTenant(ctx context.Context, id uuid.UUID) error
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 	// API Key Management Queries
 	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
 	GetAPIKeyByID(ctx context.Context, id uuid.UUID) (ApiKey, error)
 	GetAPIKeysByUser(ctx context.Context, userID uuid.UUID) ([]ApiKey, error)
+	GetCollection(ctx context.Context, id uuid.UUID) (Collection, error)
+	// Schema Management Queries
+	GetCollections(ctx context.Context) ([]Collection, error)
 	GetCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
 	GetCustomers(ctx context.Context) ([]Customer, error)
+	GetField(ctx context.Context, id uuid.UUID) (Field, error)
+	GetFields(ctx context.Context) ([]Field, error)
+	GetFieldsByCollection(ctx context.Context, collectionID uuid.NullUUID) ([]Field, error)
 	GetOrder(ctx context.Context, id uuid.UUID) (Order, error)
 	GetOrderItem(ctx context.Context, id uuid.UUID) (OrderItem, error)
 	GetOrderItems(ctx context.Context) ([]OrderItem, error)
@@ -34,17 +50,32 @@ type Querier interface {
 	GetPermissionsByRole(ctx context.Context, roleID uuid.NullUUID) ([]Permission, error)
 	GetPermissionsByRoleAndAction(ctx context.Context, arg GetPermissionsByRoleAndActionParams) ([]Permission, error)
 	GetPermissionsByRoleAndTable(ctx context.Context, arg GetPermissionsByRoleAndTableParams) ([]Permission, error)
+	// Enhanced Permission Queries with Tenant Support
+	GetPermissionsByRoleAndTenant(ctx context.Context, arg GetPermissionsByRoleAndTenantParams) ([]Permission, error)
+	GetPermissionsByUserAndTenant(ctx context.Context, arg GetPermissionsByUserAndTenantParams) ([]Permission, error)
 	GetProduct(ctx context.Context, id uuid.UUID) (Product, error)
 	GetProducts(ctx context.Context) ([]Product, error)
+	GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error)
+	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
+	// Tenant Management Queries
+	GetTenants(ctx context.Context) ([]Tenant, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, error)
+	GetUserWithTenant(ctx context.Context, id uuid.UUID) (GetUserWithTenantRow, error)
+	// Enhanced User Queries with Tenant Support
+	GetUsersByTenant(ctx context.Context, tenantID uuid.NullUUID) ([]User, error)
 	UpdateAPIKey(ctx context.Context, arg UpdateAPIKeyParams) (ApiKey, error)
 	UpdateAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error
+	UpdateCollection(ctx context.Context, arg UpdateCollectionParams) (Collection, error)
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
+	UpdateField(ctx context.Context, arg UpdateFieldParams) (Field, error)
 	UpdateOrder(ctx context.Context, arg UpdateOrderParams) (Order, error)
 	UpdateOrderItem(ctx context.Context, arg UpdateOrderItemParams) (OrderItem, error)
+	UpdatePermission(ctx context.Context, arg UpdatePermissionParams) (Permission, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error)
+	UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Tenant, error)
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

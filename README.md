@@ -181,6 +181,48 @@ go run cmd/main.go
 
 ---
 
+## 🐳 **Docker Management - Simple Start/Stop**
+
+**Need to quickly start/stop your database?**
+
+### **Stop Everything:**
+```bash
+# Stop the database (keeps data intact)
+docker-compose down
+```
+
+### **Start Everything:**
+```bash
+# Start the database back up
+docker-compose up -d
+```
+
+### **Restart Everything:**
+```bash
+# Restart in one command
+docker-compose restart
+```
+
+### **Check Status:**
+```bash
+# See what's running
+docker-compose ps
+# or
+docker ps
+```
+
+### **Complete Reset (Nuclear Option):**
+```bash
+# Stop and remove everything (⚠️ DELETES ALL DATA!)
+docker-compose down -v
+# Then start fresh
+docker-compose up -d
+```
+
+**💡 Pro Tip:** The database data persists between stops/starts, so you won't lose your data when using `docker-compose down` and `docker-compose up -d`.
+
+---
+
 ## 🔧 **Environment Configuration**
 
 The setup scripts will create a `.env` file with these settings:
