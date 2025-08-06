@@ -152,6 +152,29 @@ go build -o bin/api cmd/main.go
 
 # 9. Run the application
 go run cmd/main.go
+
+## 🚀 Quick Start Scripts
+
+For convenience, you can use the provided start scripts that handle everything automatically:
+
+### Windows (PowerShell):
+```powershell
+.\start.ps1
+```
+
+### Linux/macOS (Bash):
+```bash
+./start.sh
+```
+
+These scripts will:
+1. ✅ Start Docker containers
+2. ✅ Wait for PostgreSQL to be ready
+3. ✅ Apply all database migrations
+4. ✅ Generate SQLC code
+5. ✅ Start the API server
+
+The server will be available at `http://localhost:8080`
 ```
 
 ---

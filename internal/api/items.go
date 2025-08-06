@@ -68,14 +68,16 @@ func (h *ItemsHandler) GetItems(c *gin.Context) {
 		// These are schema tables - use direct queries with tenant filtering
 		query := rbac.BuildSelectQuery(tableName, allowedFields)
 
-		var rows *sql.Rows
-		var err error
+		var queryParams []interface{}
+		var whereConditions []string
+		paramIndex := 1
 
 		// Only add tenant filtering for tables that have tenant_id column
 		if tableName == "api_keys" {
 			// API keys table doesn't have tenant_id, filter by user_id instead
-			query += " WHERE user_id = $1"
-			rows, err = h.db.Query(query, userID)
+			whereConditions = append(whereConditions, fmt.Sprintf("user_id = $%d", paramIndex))
+			queryParams = append(queryParams, userID)
+			paramIndex++
 		} else {
 			// Add tenant filtering for multi-tenant support
 			userTenantID, err := h.getUserTenantID(c.Request.Context(), userID)
@@ -85,12 +87,31 @@ func (h *ItemsHandler) GetItems(c *gin.Context) {
 			}
 
 			if userTenantID != uuid.Nil {
-				query += " WHERE tenant_id = $1"
-				rows, err = h.db.Query(query, userTenantID)
-			} else {
-				rows, err = h.db.Query(query)
+				whereConditions = append(whereConditions, fmt.Sprintf("tenant_id = $%d", paramIndex))
+				queryParams = append(queryParams, userTenantID)
+				paramIndex++
 			}
 		}
+
+		// Add query parameter filtering
+		queryValues := c.Request.URL.Query()
+		for key, values := range queryValues {
+			if len(values) > 0 && values[0] != "" {
+				// Check if this field is allowed
+				if contains(allowedFields, key) {
+					whereConditions = append(whereConditions, fmt.Sprintf("%s = $%d", key, paramIndex))
+					queryParams = append(queryParams, values[0])
+					paramIndex++
+				}
+			}
+		}
+
+		// Add WHERE clause if we have conditions
+		if len(whereConditions) > 0 {
+			query += " WHERE " + strings.Join(whereConditions, " AND ")
+		}
+
+		rows, err := h.db.Query(query, queryParams...)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch data"})
@@ -803,6 +824,17 @@ func (h *ItemsHandler) createField(ctx context.Context, userID uuid.UUID, data m
 		return nil, fmt.Errorf("invalid collection_id")
 	}
 
+	// Get collection info to check if it's a system collection
+	collection, err := h.db.Queries.GetCollection(ctx, collectionID)
+	if err != nil {
+		return nil, fmt.Errorf("collection not found: %w", err)
+	}
+
+	// Check tenant access
+	if collection.TenantID.Valid && collection.TenantID.UUID != userTenantID {
+		return nil, fmt.Errorf("unauthorized: collection not accessible")
+	}
+
 	// Create field using sqlc
 	field, err := h.db.Queries.CreateField(ctx, sqlc.CreateFieldParams{
 		ID:              fieldID,
@@ -821,6 +853,16 @@ func (h *ItemsHandler) createField(ctx context.Context, userID uuid.UUID, data m
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// If this is not a system collection, update the data table structure
+	if !collection.IsSystem.Bool {
+		err = h.addColumnToDataTable(ctx, userTenantID, collection.Name, field)
+		if err != nil {
+			// If we fail to add the column, we should delete the field record to maintain consistency
+			h.db.Queries.DeleteField(ctx, fieldID)
+			return nil, fmt.Errorf("failed to add column to data table: %w", err)
+		}
 	}
 
 	// Convert to map
@@ -1623,6 +1665,78 @@ func (h *ItemsHandler) deleteDynamicItem(ctx context.Context, userID uuid.UUID, 
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("item not found")
+	}
+
+	return nil
+}
+
+// Helper function to check if a slice contains a string (handles wildcard *)
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item || s == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper method to add a column to a data table when a field is created
+func (h *ItemsHandler) addColumnToDataTable(ctx context.Context, tenantID uuid.UUID, collectionName string, field sqlc.Field) error {
+	// Get tenant schema
+	tenantSchema, err := h.getTenantSchema(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+
+	// For table existence check, use unquoted schema name
+	unquotedTableName := tenantSchema + ".data_" + collectionName
+	// For ALTER TABLE, use quoted schema name
+	quotedTableName := "\"" + tenantSchema + "\".data_" + collectionName
+
+	// Check if table exists
+	tableExists, err := h.tableExists(unquotedTableName)
+	if err != nil {
+		return err
+	}
+
+	if !tableExists {
+		return fmt.Errorf("data table %s does not exist", unquotedTableName)
+	}
+
+	// Build ALTER TABLE statement
+	var columnType string
+	switch field.Type {
+	case "text":
+		columnType = "TEXT"
+	case "number":
+		columnType = "NUMERIC"
+	case "boolean":
+		columnType = "BOOLEAN"
+	case "date":
+		columnType = "DATE"
+	case "datetime":
+		columnType = "TIMESTAMP WITH TIME ZONE"
+	default:
+		columnType = "TEXT"
+	}
+
+	// Build the ALTER TABLE query
+	alterQuery := fmt.Sprintf(`ALTER TABLE %s ADD COLUMN "%s" %s`, quotedTableName, field.Name, columnType)
+
+	// Add NOT NULL constraint if required
+	if field.IsRequired.Bool {
+		alterQuery += " NOT NULL"
+	}
+
+	// Add default value if provided
+	if field.DefaultValue.Valid && field.DefaultValue.String != "" {
+		alterQuery += fmt.Sprintf(" DEFAULT '%s'", field.DefaultValue.String)
+	}
+
+	// Execute the ALTER TABLE statement
+	_, err = h.db.ExecContext(ctx, alterQuery)
+	if err != nil {
+		return fmt.Errorf("failed to add column to data table: %w", err)
 	}
 
 	return nil
