@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"go-rbac-api/internal/db"
 	sqlc "go-rbac-api/internal/db/sqlc"
@@ -136,15 +137,51 @@ func (u *ItemsUtils) ScanRowsToMaps(rows *sql.Rows) []map[string]interface{} {
 //	exists, err := utils.TableExists("users")           // Check in default schema
 //	exists, err := utils.TableExists("tenant1.data_products") // Check in specific schema
 func (u *ItemsUtils) TableExists(tableName string) (bool, error) {
+	// Parse the table name to extract schema and table parts
+	var schemaName, actualTableName string
+
+	// Check if the table name contains a quoted schema (e.g., "main".data_blog_posts)
+	if len(tableName) > 2 && tableName[0] == '"' {
+		// Find the closing quote and the dot after it
+		quoteEnd := -1
+		for i := 1; i < len(tableName); i++ {
+			if tableName[i] == '"' {
+				quoteEnd = i
+				break
+			}
+		}
+
+		if quoteEnd != -1 && quoteEnd+2 < len(tableName) && tableName[quoteEnd+1] == '.' {
+			// Extract schema name (without quotes) and table name
+			schemaName = tableName[1:quoteEnd]       // Remove quotes
+			actualTableName = tableName[quoteEnd+2:] // Skip ". after quote
+		} else {
+			// Malformed quoted table name, fall back to simple split
+			schemaName = "public"
+			actualTableName = tableName
+		}
+	} else {
+		// Simple case: schema.table format
+		parts := strings.Split(tableName, ".")
+		if len(parts) == 2 {
+			schemaName = parts[0]
+			actualTableName = parts[1]
+		} else {
+			// No schema specified, assume public
+			schemaName = "public"
+			actualTableName = tableName
+		}
+	}
+
 	query := `
 		SELECT EXISTS (
 			SELECT FROM information_schema.tables 
-			WHERE table_schema = split_part($1, '.', 1)
-			AND table_name = split_part($1, '.', 2)
+			WHERE table_schema = $1
+			AND table_name = $2
 		)
 	`
 	var exists bool
-	err := u.db.QueryRow(query, tableName).Scan(&exists)
+	err := u.db.QueryRow(query, schemaName, actualTableName).Scan(&exists)
 	return exists, err
 }
 
@@ -201,7 +238,7 @@ func (u *ItemsUtils) GetTenantSchema(ctx context.Context, tenantID uuid.UUID) (s
 	var schema string
 	err := u.db.QueryRowContext(ctx, query, tenantID).Scan(&schema)
 	if err != nil {
-		return "default", err // Fallback to default schema
+		return "main", err // Fallback to main schema
 	}
 	return schema, nil
 }

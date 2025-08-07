@@ -1,4 +1,4 @@
-.PHONY: help setup start stop restart dev build test test-verbose test-coverage test-watch test-unit test-integration test-integration-full clean deps generate sqlc migrate docker-up docker-down docker-logs
+.PHONY: help setup start stop restart dev build test test-verbose test-coverage clean deps generate sqlc migrate docker-up docker-down docker-logs docs
 
 # Default target
 help:
@@ -18,15 +18,13 @@ help:
 	@echo.
 	@echo Build ^& Development:
 	@echo   build     - Build the application
-	@echo   test      - Run all tests (clean output)
+	@echo   test      - Run all tests (unit + integration)
 	@echo   test-verbose - Run tests with detailed output  
 	@echo   test-coverage - Run tests with coverage report
-	@echo   test-unit - Run unit tests only
-	@echo   test-integration - Run integration tests only (requires DB)
-	@echo   test-integration-full - Run integration tests with DB setup
 	@echo   clean     - Clean build artifacts
 	@echo   deps      - Download dependencies
 	@echo   generate  - Generate sqlc code
+	@echo   docs      - Generate Swagger docs
 	@echo   sqlc      - Run sqlc generate
 	@echo.
 	@echo Examples:
@@ -92,6 +90,8 @@ start:
 	@sqlc generate
 	@echo SUCCESS: Database code generated
 	@echo.
+	@echo Generating Swagger docs...
+	@swag init -g cmd/main.go -o docs 2>nul || echo "(tip) Install swag with: go install github.com/swaggo/swag/cmd/swag@latest"
 	@echo Building application...
 	@if not exist bin mkdir bin
 	@go build -o bin/api cmd/main.go
@@ -121,6 +121,8 @@ stop:
 # Development server with hot reload
 dev:
 	@echo Starting development server...
+	@echo Generating Swagger docs...
+	@swag init -g cmd/main.go -o docs 2>nul || echo "(tip) Install swag with: go install github.com/swaggo/swag/cmd/swag@latest"
 	@go run cmd/main.go
 
 # Build the application
@@ -132,7 +134,14 @@ build:
 
 # Run tests (clean output)
 test:
-	@echo Running tests...
+	@echo Running all tests (unit + integration)...
+	@echo.
+	@echo Starting database if not running...
+	@docker-compose up -d
+	@echo Waiting for database to be ready...
+	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
+	@echo.
+	@echo Running all tests...
 	@go test ./...
 	@echo.
 	@echo Tests completed successfully!
@@ -147,39 +156,11 @@ test-coverage:
 	@echo Running tests with coverage...
 	@go test ./... -coverprofile=coverage.out
 	@go tool cover -html=coverage.out -o coverage.html
+	@del coverage.out
 	@echo.
 	@echo Coverage report generated: coverage.html
 
-# Run tests in watch mode (requires external tool)
-test-watch:
-	@echo Running tests in watch mode...
-	@echo Note: Install 'reflex' with 'go install github.com/cespare/reflex@latest'
-	@reflex -r '\\.go$$' -s -- go test ./... -v
 
-# Run only fast tests (exclude integration tests)
-test-unit:
-	@echo Running unit tests only...
-	@go test ./internal/... -v -short
-
-# Run only integration tests (requires database)
-test-integration:
-	@echo Running integration tests...
-	@echo Note: This requires a running database (use 'make setup' or 'make docker-up' first)
-	@go test ./internal/api/ -v -run "TestIntegration"
-
-# Run integration tests with database auto-setup
-test-integration-full:
-	@echo Running integration tests with database setup...
-	@echo Starting database if not running...
-	@docker-compose up -d
-	@echo Waiting for database to be ready...
-	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
-	@echo.
-	@echo Note: Integration tests require a running server on port 8080
-	@echo Start the server with: make start (in another terminal)
-	@echo.
-	@echo Running integration tests...
-	@go test ./internal/api/ -v -run "TestIntegration"
 
 # Clean build artifacts
 clean:
@@ -203,6 +184,12 @@ sqlc:
 	@echo Generating sqlc code...
 	@sqlc generate
 	@echo SUCCESS: Database code generated
+
+# Generate swagger docs
+docs:
+	@echo Generating Swagger docs...
+	@swag init -g cmd/main.go -o docs
+	@echo SUCCESS: Swagger docs generated at docs/
 
 # Apply database migrations (only if needed)
 migrate:

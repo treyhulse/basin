@@ -196,7 +196,8 @@ func BuildSelectQuery(tableName string, allowedFields []string) string {
 
 // BuildSelectQueryWithTenant builds a safe SELECT query with tenant schema
 func BuildSelectQueryWithTenant(tenantSchema, tableName string, allowedFields []string) string {
-	fullTableName := fmt.Sprintf("%s.data_%s", tenantSchema, tableName)
+	// Quote the schema name to handle reserved keywords like 'default'
+	fullTableName := fmt.Sprintf(`"%s".data_%s`, tenantSchema, tableName)
 
 	if len(allowedFields) == 0 {
 		return fmt.Sprintf("SELECT * FROM %s", fullTableName)

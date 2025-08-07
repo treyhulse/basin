@@ -5,8 +5,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+
+	"go-rbac-api/internal/db"
 
 	"github.com/google/uuid"
 )
@@ -30,14 +33,14 @@ import (
 // - Proper transaction handling and error reporting
 // - Table existence validation before operations
 type DynamicHandlers struct {
-	handler *ItemsHandler // Reference to main handler for database access
-	utils   *ItemsUtils   // Utility functions for tenant/table management
+	db    *db.DB      // Database connection for direct queries
+	utils *ItemsUtils // Utility functions for tenant/table management
 }
 
 // NewDynamicHandlers creates a new DynamicHandlers instance with required dependencies.
 //
 // Parameters:
-//   - handler: Main ItemsHandler instance providing database access
+//   - db: Database connection for direct queries
 //   - utils: ItemsUtils instance providing utility functions
 //
 // Returns:
@@ -45,12 +48,12 @@ type DynamicHandlers struct {
 //
 // Example:
 //
-//	dynamicHandler := NewDynamicHandlers(itemsHandler, utils)
+//	dynamicHandler := NewDynamicHandlers(db, utils)
 //	err := dynamicHandler.CreateDynamicItem(ctx, userID, "products", productData)
-func NewDynamicHandlers(handler *ItemsHandler, utils *ItemsUtils) *DynamicHandlers {
+func NewDynamicHandlers(db *db.DB, utils *ItemsUtils) *DynamicHandlers {
 	return &DynamicHandlers{
-		handler: handler,
-		utils:   utils,
+		db:    db,
+		utils: utils,
 	}
 }
 
@@ -67,7 +70,7 @@ func (d *DynamicHandlers) CreateDynamicItem(ctx context.Context, userID uuid.UUI
 		return err
 	}
 
-	dataTableName := tenantSchema + ".data_" + tableName
+	dataTableName := fmt.Sprintf(`"%s".data_%s`, tenantSchema, tableName)
 
 	// Check if table exists
 	tableExists, err := d.utils.TableExists(dataTableName)
@@ -106,8 +109,93 @@ func (d *DynamicHandlers) CreateDynamicItem(ctx context.Context, userID uuid.UUI
 		strings.Join(placeholders, ", "),
 	)
 
-	_, err = d.handler.db.ExecContext(ctx, query, values...)
+	_, err = d.db.ExecContext(ctx, query, values...)
 	return err
+}
+
+// GetDynamicItem retrieves a specific item from a dynamic data table by ID
+func (d *DynamicHandlers) GetDynamicItem(ctx context.Context, userID uuid.UUID, tableName string, itemID string) (map[string]interface{}, error) {
+	// Get tenant schema
+	userTenantID, err := d.utils.GetUserTenantID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	tenantSchema, err := d.utils.GetTenantSchema(ctx, userTenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	dataTableName := fmt.Sprintf(`"%s".data_%s`, tenantSchema, tableName)
+
+	// Check if table exists
+	tableExists, err := d.utils.TableExists(dataTableName)
+	if err != nil {
+		return nil, err
+	}
+
+	if !tableExists {
+		return nil, fmt.Errorf("table %s does not exist", dataTableName)
+	}
+
+	// Set user context for RLS
+	_, err = d.db.Exec("SELECT set_user_context($1)", userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set user context: %w", err)
+	}
+
+	// Query the item
+	query := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", dataTableName)
+	rows, err := d.db.QueryContext(ctx, query, itemID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query item: %w", err)
+	}
+	defer rows.Close()
+
+	// Get column names
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	// Create slice to hold values
+	values := make([]interface{}, len(columns))
+	valuePtrs := make([]interface{}, len(columns))
+	for i := range values {
+		valuePtrs[i] = &values[i]
+	}
+
+	// Check if we have a row
+	if !rows.Next() {
+		return nil, fmt.Errorf("item not found")
+	}
+
+	// Scan the row
+	err = rows.Scan(valuePtrs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan row: %w", err)
+	}
+
+	// Convert to map
+	result := make(map[string]interface{})
+	for i, col := range columns {
+		val := values[i]
+		if val != nil {
+			// Handle JSONB columns
+			if jsonBytes, ok := val.([]byte); ok {
+				var jsonData interface{}
+				if err := json.Unmarshal(jsonBytes, &jsonData); err == nil {
+					result[col] = jsonData
+				} else {
+					result[col] = string(jsonBytes)
+				}
+			} else {
+				result[col] = val
+			}
+		}
+	}
+
+	return result, nil
 }
 
 // UpdateDynamicItem updates an existing item in a dynamic data table
@@ -123,7 +211,7 @@ func (d *DynamicHandlers) UpdateDynamicItem(ctx context.Context, userID uuid.UUI
 		return err
 	}
 
-	dataTableName := tenantSchema + ".data_" + tableName
+	dataTableName := fmt.Sprintf(`"%s".data_%s`, tenantSchema, tableName)
 
 	// Check if table exists
 	exists, err := d.utils.TableExists(dataTableName)
@@ -135,7 +223,7 @@ func (d *DynamicHandlers) UpdateDynamicItem(ctx context.Context, userID uuid.UUI
 	}
 
 	// Set user context for RLS
-	_, err = d.handler.db.Exec("SELECT set_user_context($1)", userID)
+	_, err = d.db.Exec("SELECT set_user_context($1)", userID)
 	if err != nil {
 		return fmt.Errorf("failed to set user context: %w", err)
 	}
@@ -150,17 +238,19 @@ func (d *DynamicHandlers) UpdateDynamicItem(ctx context.Context, userID uuid.UUI
 	argIndex := 1
 
 	for field, value := range data {
-		setParts = append(setParts, fmt.Sprintf("%s = $%d", field, argIndex))
-		args = append(args, value)
-		argIndex++
+		if field != "id" && field != "created_at" && field != "created_by" {
+			setParts = append(setParts, fmt.Sprintf(`"%s" = $%d`, field, argIndex))
+			args = append(args, value)
+			argIndex++
+		}
 	}
 
-	query := fmt.Sprintf("UPDATE %s SET %s, updated_at = CURRENT_TIMESTAMP WHERE id = $%d",
-		dataTableName, strings.Join(setParts, ", "), argIndex)
-	args = append(args, itemID)
+	query := fmt.Sprintf("UPDATE %s SET %s, updated_at = CURRENT_TIMESTAMP, updated_by = $%d WHERE id = $%d",
+		dataTableName, strings.Join(setParts, ", "), argIndex, argIndex+1)
+	args = append(args, userID, itemID)
 
 	// Execute update
-	result, err := d.handler.db.Exec(query, args...)
+	result, err := d.db.Exec(query, args...)
 	if err != nil {
 		return fmt.Errorf("failed to update item: %w", err)
 	}
@@ -190,7 +280,7 @@ func (d *DynamicHandlers) DeleteDynamicItem(ctx context.Context, userID uuid.UUI
 		return err
 	}
 
-	dataTableName := tenantSchema + ".data_" + tableName
+	dataTableName := fmt.Sprintf(`"%s".data_%s`, tenantSchema, tableName)
 
 	// Check if table exists
 	exists, err := d.utils.TableExists(dataTableName)
@@ -202,14 +292,14 @@ func (d *DynamicHandlers) DeleteDynamicItem(ctx context.Context, userID uuid.UUI
 	}
 
 	// Set user context for RLS
-	_, err = d.handler.db.Exec("SELECT set_user_context($1)", userID)
+	_, err = d.db.Exec("SELECT set_user_context($1)", userID)
 	if err != nil {
 		return fmt.Errorf("failed to set user context: %w", err)
 	}
 
 	// Execute delete
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", dataTableName)
-	result, err := d.handler.db.Exec(query, itemID)
+	result, err := d.db.Exec(query, itemID)
 	if err != nil {
 		return fmt.Errorf("failed to delete item: %w", err)
 	}

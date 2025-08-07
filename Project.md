@@ -91,7 +91,7 @@ basin/
 - `GET /auth/me` - Get current user info
 
 ### **Dynamic CRUD Operations**
-- `GET /items/:table` - List items with RBAC filtering
+- `GET /items/:table` - List items with RBAC filtering, pagination and sort
 - `GET /items/:table/:id` - Get single item
 - `POST /items/:table` - Create new item (demo mode)
 - `PUT /items/:table/:id` - Update item (demo mode)
@@ -289,6 +289,36 @@ This implementation is **feature-complete** and ready for:
 | 📝 **OpenAPI/Swagger** | Low | Auto-generated API documentation |
 | 🚀 **Deployment Configs** | Low | Docker production setup, CI/CD |
 | 🎨 **Admin Frontend** | High | React/Next.js admin interface |
+
+---
+
+## 🧭 Monorepo structure (recommended)
+
+At the repo root, add a sibling Next.js app for the admin UI:
+
+```
+basin/
+  cmd/
+  internal/
+  migrations/
+  ...
+basin-admin/   # Next.js (App Router) admin UI
+```
+
+### Frontend foundations
+- Use Next.js + TypeScript + shadcn/ui + Tailwind + React Query
+- Auth: call `POST /auth/login`, store JWT in httpOnly cookie via Next.js route handler
+- Data layer: generate a client from `/openapi.json`
+- Initial pages: Login, Collections list/detail, Fields editor, Data browser
+
+### API pagination/sort
+- Query params supported: `limit`, `offset`, `page`, `per_page`, `sort`, `order`
+
+---
+
+## 🔌 CORS
+
+Basic CORS is enabled to allow the admin UI to call the API during development.
 
 ---
 

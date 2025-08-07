@@ -15,9 +15,20 @@ import (
 	"go-rbac-api/internal/db"
 	"go-rbac-api/internal/middleware"
 
+	_ "go-rbac-api/docs"
+
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// @title        Basin API
+// @version      1.0
+// @description  Directus-style API with Role-Based Access Control (RBAC)
+// @BasePath     /
+// @securityDefinitions.apikey BearerAuth
+// @in          header
+// @name        Authorization
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -108,6 +119,9 @@ func main() {
 			},
 		})
 	})
+
+	// Swagger UI and JSON (auto-generated)
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Create server
 	srv := &http.Server{

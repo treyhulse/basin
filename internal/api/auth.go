@@ -24,6 +24,15 @@ func NewAuthHandler(db *db.DB, cfg *config.Config) *AuthHandler {
 }
 
 // Login handles POST /auth/login requests
+// @Summary      Login
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body   models.LoginRequest true "Login payload"
+// @Success      200   {object} models.LoginResponse
+// @Failure      400   {object} map[string]string
+// @Failure      401   {object} map[string]string
+// @Router       /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var loginReq models.LoginRequest
 	if err := c.ShouldBindJSON(&loginReq); err != nil {
@@ -81,6 +90,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 // Me handles GET /auth/me requests to get current user info
+// @Summary      Get current user
+// @Tags         auth
+// @Security     BearerAuth
+// @Produce      json
+// @Success      200 {object} models.User
+// @Failure      401 {object} map[string]string
+// @Router       /auth/me [get]
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {

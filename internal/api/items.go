@@ -30,9 +30,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"go-rbac-api/internal/db"
@@ -70,11 +72,12 @@ import (
 // - Input validation and SQL injection prevention
 // - Comprehensive error handling with proper HTTP status codes
 type ItemsHandler struct {
-	db              *db.DB              // Database connection pool for direct queries
-	policyChecker   *rbac.PolicyChecker // RBAC policy evaluation engine
-	utils           *ItemsUtils         // Utility functions for common operations
-	schemaHandlers  *SchemaHandlers     // Handler for schema management tables
-	dynamicHandlers *DynamicHandlers    // Handler for dynamic tenant data tables
+	db                 *db.DB              // Database connection pool for direct queries
+	policyChecker      *rbac.PolicyChecker // RBAC policy evaluation engine
+	utils              *ItemsUtils         // Utility functions for common operations
+	schemaHandlers     *SchemaHandlers     // Handler for schema management tables
+	dynamicHandlers    *DynamicHandlers    // Handler for dynamic tenant data tables
+	collectionsHandler *CollectionsHandler // Handler for user-created collections
 }
 
 // NewItemsHandler creates a fully configured ItemsHandler with all required dependencies.
@@ -103,7 +106,8 @@ func NewItemsHandler(db *db.DB) *ItemsHandler {
 	// Initialize utility and handler components
 	handler.utils = NewItemsUtils(db)
 	handler.schemaHandlers = NewSchemaHandlers(handler, handler.utils)
-	handler.dynamicHandlers = NewDynamicHandlers(handler, handler.utils)
+	handler.dynamicHandlers = NewDynamicHandlers(db, handler.utils)
+	handler.collectionsHandler = NewCollectionsHandler(db, handler.utils, handler.dynamicHandlers)
 
 	return handler
 }
@@ -145,6 +149,23 @@ func NewItemsHandler(db *db.DB) *ItemsHandler {
 //	  "data": [{"id": "123", "name": "Product 1", ...}],
 //	  "meta": {"table": "products", "count": 1, "type": "data"}
 //	}
+//
+// @Summary      List items
+// @Tags         items
+// @Security     BearerAuth
+// @Param        table    path   string true  "Table name"
+// @Param        limit    query  int    false "Limit"
+// @Param        offset   query  int    false "Offset"
+// @Param        page     query  int    false "Page (1-based)"
+// @Param        per_page query  int    false "Per page"
+// @Param        sort     query  string false "Sort field"
+// @Param        order    query  string false "ASC or DESC"
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Router       /items/{table} [get]
 func (h *ItemsHandler) GetItems(c *gin.Context) {
 	tableName := c.Param("table")
 
@@ -179,11 +200,29 @@ func (h *ItemsHandler) GetItems(c *gin.Context) {
 		return
 	}
 
+	// Check if this is a user-created collection
+	if h.isUserCollection(c.Request.Context(), userID, tableName) {
+		h.handleUserCollectionQuery(c, tableName, userID, allowedFields)
+		return
+	}
+
 	// Handle dynamic data tables
 	h.handleDynamicTableQuery(c, tableName, userID, allowedFields)
 }
 
 // GetItem handles GET /items/:table/:id requests
+// @Summary      Get item
+// @Tags         items
+// @Security     BearerAuth
+// @Param        table   path      string true  "Table name"
+// @Param        id      path      string true  "Item ID"
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Failure      404 {object} map[string]string
+// @Router       /items/{table}/{id} [get]
 func (h *ItemsHandler) GetItem(c *gin.Context) {
 	tableName := c.Param("table")
 	itemID := c.Param("id")
@@ -216,6 +255,12 @@ func (h *ItemsHandler) GetItem(c *gin.Context) {
 
 	if !hasPermission {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+		return
+	}
+
+	// Check if this is a user collection and route accordingly
+	if h.isUserCollection(c.Request.Context(), userID, tableName) {
+		h.handleUserCollectionGetItem(c, tableName, userID, itemID, allowedFields)
 		return
 	}
 
@@ -314,6 +359,18 @@ func (h *ItemsHandler) GetItem(c *gin.Context) {
 //   - 401: Missing or invalid authentication token
 //   - 403: User lacks permission to create in this table
 //   - 500: Internal server error during creation
+//
+// @Summary      Create item
+// @Tags         items
+// @Security     BearerAuth
+// @Param        table   path      string true  "Table name"
+// @Accept       json
+// @Produce      json
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Router       /items/{table} [post]
 func (h *ItemsHandler) CreateItem(c *gin.Context) {
 	tableName := c.Param("table")
 
@@ -339,6 +396,12 @@ func (h *ItemsHandler) CreateItem(c *gin.Context) {
 	// Route to appropriate handler based on table type
 	if h.isSchemaTable(tableName) {
 		h.handleSchemaTableCreate(c, tableName, userID, filteredData)
+		return
+	}
+
+	// Check if this is a user-created collection
+	if h.isUserCollection(c.Request.Context(), userID, tableName) {
+		h.handleUserCollectionCreate(c, tableName, userID, filteredData)
 		return
 	}
 
@@ -385,6 +448,20 @@ func (h *ItemsHandler) CreateItem(c *gin.Context) {
 //   - 403: User lacks permission to update in this table
 //   - 404: Item not found or not accessible to user
 //   - 500: Internal server error during update
+//
+// @Summary      Update item
+// @Tags         items
+// @Security     BearerAuth
+// @Param        table   path      string true  "Table name"
+// @Param        id      path      string true  "Item ID"
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Failure      404 {object} map[string]string
+// @Router       /items/{table}/{id} [put]
 func (h *ItemsHandler) UpdateItem(c *gin.Context) {
 	tableName := c.Param("table")
 	itemID := c.Param("id")
@@ -417,6 +494,12 @@ func (h *ItemsHandler) UpdateItem(c *gin.Context) {
 	// Route to appropriate handler based on table type
 	if h.isSchemaTable(tableName) {
 		h.handleSchemaTableUpdate(c, tableName, userID, itemID, filteredData)
+		return
+	}
+
+	// Check if this is a user-created collection
+	if h.isUserCollection(c.Request.Context(), userID, tableName) {
+		h.handleUserCollectionUpdate(c, tableName, userID, itemID, filteredData)
 		return
 	}
 
@@ -460,6 +543,18 @@ func (h *ItemsHandler) UpdateItem(c *gin.Context) {
 //   - 500: Internal server error during deletion
 //
 // Note: Deletions may cascade to related data depending on table relationships
+// @Summary      Delete item
+// @Tags         items
+// @Security     BearerAuth
+// @Param        table   path      string true  "Table name"
+// @Param        id      path      string true  "Item ID"
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Failure      404 {object} map[string]string
+// @Router       /items/{table}/{id} [delete]
 func (h *ItemsHandler) DeleteItem(c *gin.Context) {
 	tableName := c.Param("table")
 	itemID := c.Param("id")
@@ -496,6 +591,12 @@ func (h *ItemsHandler) DeleteItem(c *gin.Context) {
 	// Route to appropriate handler based on table type
 	if h.isSchemaTable(tableName) {
 		h.handleSchemaTableDelete(c, tableName, userID, itemID)
+		return
+	}
+
+	// Check if this is a user-created collection
+	if h.isUserCollection(c.Request.Context(), userID, tableName) {
+		h.handleUserCollectionDelete(c, tableName, userID, itemID)
 		return
 	}
 
@@ -547,6 +648,19 @@ func (h *ItemsHandler) isSchemaTable(tableName string) bool {
 		}
 	}
 	return false
+}
+
+// isUserCollection checks if a table is a user-created collection
+func (h *ItemsHandler) isUserCollection(ctx context.Context, userID uuid.UUID, tableName string) bool {
+	// Get user's tenant
+	userTenantID, err := h.utils.GetUserTenantID(ctx, userID)
+	if err != nil {
+		return false
+	}
+
+	// Check if collection exists in the collections table
+	_, err = h.collectionsHandler.GetCollection(ctx, userTenantID, tableName)
+	return err == nil
 }
 
 // handleSchemaTableCreate routes create requests for schema management tables
@@ -609,6 +723,77 @@ func (h *ItemsHandler) handleSchemaTableUpdate(c *gin.Context, tableName string,
 	})
 }
 
+// handleUserCollectionCreate routes create requests for user-created collections
+func (h *ItemsHandler) handleUserCollectionCreate(c *gin.Context, tableName string, userID uuid.UUID, data map[string]interface{}) {
+	// Create the item using collections handler
+	result, err := h.collectionsHandler.CreateCollectionItem(c.Request.Context(), userID, tableName, data)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create collection item: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"data": result,
+		"meta": gin.H{"table": tableName, "type": "collection"},
+	})
+}
+
+// handleUserCollectionUpdate routes update requests for user-created collections
+func (h *ItemsHandler) handleUserCollectionUpdate(c *gin.Context, tableName string, userID uuid.UUID, itemID string, data map[string]interface{}) {
+	// Update the item using collections handler
+	result, err := h.collectionsHandler.UpdateCollectionItem(c.Request.Context(), userID, tableName, itemID, data)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update collection item: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": result,
+		"meta": gin.H{"table": tableName, "id": itemID, "type": "collection"},
+	})
+}
+
+// handleUserCollectionDelete routes delete requests for user-created collections
+func (h *ItemsHandler) handleUserCollectionDelete(c *gin.Context, tableName string, userID uuid.UUID, itemID string) {
+	// Delete the item using collections handler
+	err := h.collectionsHandler.DeleteCollectionItem(c.Request.Context(), userID, tableName, itemID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to delete collection item: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"meta": gin.H{"table": tableName, "id": itemID, "type": "collection"},
+	})
+}
+
+// handleUserCollectionGetItem handles getting a specific item from a user collection
+func (h *ItemsHandler) handleUserCollectionGetItem(c *gin.Context, tableName string, userID uuid.UUID, itemID string, allowedFields []string) {
+	// Get the item using collections handler
+	item, err := h.collectionsHandler.GetCollectionItem(c.Request.Context(), userID, tableName, itemID)
+	if err != nil {
+		if strings.Contains(err.Error(), "item not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Item not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch item"})
+		}
+		return
+	}
+
+	// Apply field filtering
+	filteredItem := h.policyChecker.FilterFields(item, allowedFields)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": filteredItem,
+		"meta": gin.H{
+			"table":      tableName,
+			"id":         itemID,
+			"type":       "collection",
+			"collection": tableName,
+		},
+	})
+}
+
 // handleSchemaTableDelete routes delete requests for schema management tables
 func (h *ItemsHandler) handleSchemaTableDelete(c *gin.Context, tableName string, userID uuid.UUID, itemID string) {
 	var err error
@@ -666,11 +851,13 @@ func (h *ItemsHandler) handleSchemaTableQuery(c *gin.Context, tableName string, 
 		}
 	}
 
-	// Add query parameter filtering
+	// Add query parameter filtering (exclude special params)
 	queryValues := c.Request.URL.Query()
 	for key, values := range queryValues {
+		if key == "limit" || key == "offset" || key == "page" || key == "per_page" || key == "sort" || key == "order" {
+			continue
+		}
 		if len(values) > 0 && values[0] != "" {
-			// Check if this field is allowed
 			if Contains(allowedFields, key) {
 				whereConditions = append(whereConditions, fmt.Sprintf("%s = $%d", key, paramIndex))
 				queryParams = append(queryParams, values[0])
@@ -683,6 +870,41 @@ func (h *ItemsHandler) handleSchemaTableQuery(c *gin.Context, tableName string, 
 	if len(whereConditions) > 0 {
 		query += " WHERE " + strings.Join(whereConditions, " AND ")
 	}
+
+	// Sorting
+	if sortField := c.Query("sort"); sortField != "" && Contains(allowedFields, sortField) {
+		order := strings.ToUpper(c.DefaultQuery("order", "ASC"))
+		if order != "ASC" && order != "DESC" {
+			order = "ASC"
+		}
+		query += fmt.Sprintf(" ORDER BY \"%s\" %s", sortField, order)
+	}
+
+	// Pagination
+	limit := 50
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	if v := c.Query("per_page"); v != "" { // alias
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	offset := 0
+	if v := c.Query("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	if v := c.Query("page"); v != "" { // 1-based
+		if n, err := strconv.Atoi(v); err == nil && n > 1 {
+			offset = (n - 1) * limit
+		}
+	}
+
+	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 
 	rows, err := h.db.Query(query, queryParams...)
 	if err != nil {
@@ -701,9 +923,131 @@ func (h *ItemsHandler) handleSchemaTableQuery(c *gin.Context, tableName string, 
 	c.JSON(http.StatusOK, gin.H{
 		"data": filteredResults,
 		"meta": gin.H{
-			"table": tableName,
-			"count": len(filteredResults),
-			"type":  "schema",
+			"table":  tableName,
+			"count":  len(filteredResults),
+			"limit":  limit,
+			"offset": offset,
+			"type":   "schema",
+		},
+	})
+}
+
+// handleUserCollectionQuery handles queries for user-created collections
+func (h *ItemsHandler) handleUserCollectionQuery(c *gin.Context, tableName string, userID uuid.UUID, allowedFields []string) {
+	// Get user's tenant
+	userTenantID, err := h.utils.GetUserTenantID(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user tenant"})
+		return
+	}
+
+	// Get collection definition
+	collection, err := h.collectionsHandler.GetCollection(c.Request.Context(), userTenantID, tableName)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Collection not found"})
+		return
+	}
+
+	// Get tenant schema
+	tenantSchema, err := h.utils.GetTenantSchema(c.Request.Context(), userTenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenant schema"})
+		return
+	}
+
+	dataTableName := tenantSchema + ".data_" + tableName
+
+	// Set user context for RLS
+	_, err = h.db.Exec("SELECT set_user_context($1)", userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set user context"})
+		return
+	}
+
+	// Check if the data table exists
+	tableExists, err := h.utils.TableExists(dataTableName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check table existence"})
+		return
+	}
+
+	if !tableExists {
+		// Table doesn't exist - return empty result
+		c.JSON(http.StatusOK, gin.H{
+			"data": []map[string]interface{}{},
+			"meta": gin.H{
+				"table":      tableName,
+				"count":      0,
+				"type":       "collection",
+				"collection": collection.Name,
+				"message":    "Collection table does not exist yet",
+			},
+		})
+		return
+	}
+
+	// Build query based on allowed fields for data table
+	query := rbac.BuildSelectQueryWithTenant(tenantSchema, tableName, allowedFields)
+
+	// Sorting
+	if sortField := c.Query("sort"); sortField != "" && Contains(allowedFields, sortField) {
+		order := strings.ToUpper(c.DefaultQuery("order", "ASC"))
+		if order != "ASC" && order != "DESC" {
+			order = "ASC"
+		}
+		query += fmt.Sprintf(" ORDER BY \"%s\" %s", sortField, order)
+	}
+
+	// Pagination
+	limit := 50
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	if v := c.Query("per_page"); v != "" { // alias
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	offset := 0
+	if v := c.Query("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	if v := c.Query("page"); v != "" { // 1-based
+		if n, err := strconv.Atoi(v); err == nil && n > 1 {
+			offset = (n - 1) * limit
+		}
+	}
+
+	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+
+	// Execute query
+	rows, err := h.db.Query(query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch data"})
+		return
+	}
+	defer rows.Close()
+
+	// Process results
+	results := h.utils.ScanRowsToMaps(rows)
+	filteredResults := make([]map[string]interface{}, len(results))
+	for i, result := range results {
+		filteredResults[i] = h.policyChecker.FilterFields(result, allowedFields)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": filteredResults,
+		"meta": gin.H{
+			"table":      tableName,
+			"count":      len(filteredResults),
+			"limit":      limit,
+			"offset":     offset,
+			"type":       "collection",
+			"collection": collection.Name,
 		},
 	})
 }
@@ -756,6 +1100,41 @@ func (h *ItemsHandler) handleDynamicTableQuery(c *gin.Context, tableName string,
 	// Build query based on allowed fields for data table
 	query := rbac.BuildSelectQueryWithTenant(tenantSchema, tableName, allowedFields)
 
+	// Sorting
+	if sortField := c.Query("sort"); sortField != "" && Contains(allowedFields, sortField) {
+		order := strings.ToUpper(c.DefaultQuery("order", "ASC"))
+		if order != "ASC" && order != "DESC" {
+			order = "ASC"
+		}
+		query += fmt.Sprintf(" ORDER BY \"%s\" %s", sortField, order)
+	}
+
+	// Pagination
+	limit := 50
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	if v := c.Query("per_page"); v != "" { // alias
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	offset := 0
+	if v := c.Query("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	if v := c.Query("page"); v != "" { // 1-based
+		if n, err := strconv.Atoi(v); err == nil && n > 1 {
+			offset = (n - 1) * limit
+		}
+	}
+
+	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+
 	// Execute query
 	rows, err := h.db.Query(query)
 	if err != nil {
@@ -774,9 +1153,11 @@ func (h *ItemsHandler) handleDynamicTableQuery(c *gin.Context, tableName string,
 	c.JSON(http.StatusOK, gin.H{
 		"data": filteredResults,
 		"meta": gin.H{
-			"table": tableName,
-			"count": len(filteredResults),
-			"type":  "data",
+			"table":  tableName,
+			"count":  len(filteredResults),
+			"limit":  limit,
+			"offset": offset,
+			"type":   "data",
 		},
 	})
 }

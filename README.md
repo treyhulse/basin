@@ -357,6 +357,12 @@ The API will be available at `http://localhost:8080`
 
 ## 📚 API Documentation
 
+### OpenAPI
+
+- Swagger UI: `http://localhost:8080/swagger/index.html`
+- Swagger JSON: `http://localhost:8080/swagger/doc.json`
+- Generate a typed client for frontend using `openapi-typescript` or `orval`
+
 ### Authentication
 
 #### Login
@@ -410,7 +416,7 @@ All items endpoints require authentication. Include the JWT token in the Authori
 
 #### List Items
 ```http
-GET /items/:table
+GET /items/:table?limit=50&offset=0&sort=created_at&order=desc
 Authorization: Bearer <token>
 ```
 
