@@ -93,9 +93,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Summary      Get current user
 // @Tags         auth
 // @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Description  Retrieve information about the currently authenticated user. Requires valid JWT Bearer token or API key.
 // @Produce      json
 // @Success      200 {object} models.User
-// @Failure      401 {object} map[string]string
+// @Failure      401 {object} models.ErrorResponse
 // @Router       /auth/me [get]
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)

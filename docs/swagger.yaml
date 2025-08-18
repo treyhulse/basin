@@ -1,5 +1,99 @@
 basePath: /
 definitions:
+  models.CreateItemMeta:
+    properties:
+      message:
+        example: Item created successfully
+        type: string
+      table:
+        example: customers
+        type: string
+    type: object
+  models.CreateItemResponse:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      meta:
+        $ref: '#/definitions/models.CreateItemMeta'
+    type: object
+  models.DeleteItemMeta:
+    properties:
+      id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      message:
+        example: Item deleted successfully
+        type: string
+      table:
+        example: customers
+        type: string
+    type: object
+  models.DeleteItemResponse:
+    properties:
+      meta:
+        $ref: '#/definitions/models.DeleteItemMeta'
+    type: object
+  models.ErrorResponse:
+    properties:
+      code:
+        example: INVALID_TABLE
+        type: string
+      details:
+        example: Table 'invalid_table' does not exist or is not accessible
+        type: string
+      error:
+        example: Invalid table name
+        type: string
+    type: object
+  models.ItemMeta:
+    properties:
+      id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      table:
+        example: customers
+        type: string
+    type: object
+  models.ItemResponse:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      meta:
+        $ref: '#/definitions/models.ItemMeta'
+    type: object
+  models.ItemsListMeta:
+    properties:
+      count:
+        example: 25
+        type: integer
+      limit:
+        example: 25
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      table:
+        example: customers
+        type: string
+      total:
+        example: 100
+        type: integer
+      type:
+        example: data
+        type: string
+    type: object
+  models.ItemsListResponse:
+    properties:
+      data:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+      meta:
+        $ref: '#/definitions/models.ItemsListMeta'
+    type: object
   models.LoginRequest:
     properties:
       email:
@@ -16,6 +110,23 @@ definitions:
         type: string
       user:
         $ref: '#/definitions/models.User'
+    type: object
+  models.UpdateItemMeta:
+    properties:
+      id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      table:
+        example: customers
+        type: string
+    type: object
+  models.UpdateItemResponse:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      meta:
+        $ref: '#/definitions/models.UpdateItemMeta'
     type: object
   models.User:
     properties:
@@ -36,9 +147,11 @@ definitions:
     type: object
 info:
   contact: {}
-  description: Directus-style API with Role-Based Access Control (RBAC)
+  description: Directus-style API with Role-Based Access Control (RBAC). A powerful,
+    generic API that provides CRUD operations for any database table with comprehensive
+    security, multi-tenancy, and dynamic schema management.
   title: Basin API
-  version: "1.0"
+  version: 1.0.0
 paths:
   /auth/login:
     post:
@@ -75,6 +188,8 @@ paths:
       - auth
   /auth/me:
     get:
+      description: Retrieve information about the currently authenticated user. Requires
+        valid JWT Bearer token or API key.
       produces:
       - application/json
       responses:
@@ -85,16 +200,17 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
       security:
       - BearerAuth: []
+      - ApiKeyAuth: []
       summary: Get current user
       tags:
       - auth
   /items/{table}:
     get:
+      description: Retrieve a list of items from a specified table. Requires authentication
+        via JWT Bearer token or API key.
       parameters:
       - description: Table name
         in: path
@@ -131,73 +247,72 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.ItemsListResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
       security:
       - BearerAuth: []
+      - ApiKeyAuth: []
       summary: List items
       tags:
       - items
     post:
       consumes:
       - application/json
+      description: Create a new item in the specified table. Requires authentication
+        via JWT Bearer token or API key.
       parameters:
       - description: Table name
         in: path
         name: table
         required: true
         type: string
+      - description: Item data
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.CreateItemResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
       security:
       - BearerAuth: []
+      - ApiKeyAuth: []
       summary: Create item
       tags:
       - items
   /items/{table}/{id}:
     delete:
+      description: Delete an item from the specified table. Requires authentication
+        via JWT Bearer token or API key.
       parameters:
       - description: Table name
         in: path
@@ -215,38 +330,32 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.DeleteItemResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
       security:
       - BearerAuth: []
+      - ApiKeyAuth: []
       summary: Delete item
       tags:
       - items
     get:
+      description: Retrieve a specific item by ID. Requires authentication via JWT
+        Bearer token or API key.
       parameters:
       - description: Table name
         in: path
@@ -264,40 +373,34 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.ItemResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/models.ErrorResponse'
       security:
       - BearerAuth: []
+      - ApiKeyAuth: []
       summary: Get item
       tags:
       - items
     put:
       consumes:
       - application/json
+      description: Update an existing item in the specified table. Requires authentication
+        via JWT Bearer token or API key.
       parameters:
       - description: Table name
         in: path
@@ -309,14 +412,20 @@ paths:
         name: id
         required: true
         type: string
+      - description: Item data to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/models.UpdateItemResponse'
         "400":
           description: Bad Request
           schema:
@@ -343,11 +452,18 @@ paths:
             type: object
       security:
       - BearerAuth: []
+      - ApiKeyAuth: []
       summary: Update item
       tags:
       - items
 securityDefinitions:
+  ApiKeyAuth:
+    description: 'API key for programmatic access (format: Bearer YOUR_API_KEY)'
+    in: header
+    name: Authorization
+    type: apiKey
   BearerAuth:
+    description: JWT Bearer token for user authentication
     in: header
     name: Authorization
     type: apiKey

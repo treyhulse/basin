@@ -23,12 +23,17 @@ import (
 )
 
 // @title        Basin API
-// @version      1.0
-// @description  Directus-style API with Role-Based Access Control (RBAC)
+// @version      1.0.0
+// @description  Directus-style API with Role-Based Access Control (RBAC). A powerful, generic API that provides CRUD operations for any database table with comprehensive security, multi-tenancy, and dynamic schema management.
 // @BasePath     /
 // @securityDefinitions.apikey BearerAuth
 // @in          header
 // @name        Authorization
+// @description  JWT Bearer token for user authentication
+// @securityDefinitions.apikey ApiKeyAuth
+// @in          header
+// @name        Authorization
+// @description  API key for programmatic access (format: Bearer YOUR_API_KEY)
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
@@ -68,6 +73,11 @@ func main() {
 	})
 
 	// Health check endpoint
+	// @Summary      Health Check
+	// @Tags         system
+	// @Produce      json
+	// @Success      200 {object} models.HealthResponse
+	// @Router       /health [get]
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "ok",
@@ -94,6 +104,11 @@ func main() {
 	}
 
 	// API documentation
+	// @Summary      API Information
+	// @Tags         system
+	// @Produce      json
+	// @Success      200 {object} models.APIInfoResponse
+	// @Router       / [get]
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Go RBAC API - Directus-style API with Role-Based Access Control",

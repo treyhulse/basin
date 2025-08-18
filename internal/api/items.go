@@ -153,6 +153,8 @@ func NewItemsHandler(db *db.DB) *ItemsHandler {
 // @Summary      List items
 // @Tags         items
 // @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Description  Retrieve a list of items from a specified table. Requires authentication via JWT Bearer token or API key.
 // @Param        table    path   string true  "Table name"
 // @Param        limit    query  int    false "Limit"
 // @Param        offset   query  int    false "Offset"
@@ -161,10 +163,10 @@ func NewItemsHandler(db *db.DB) *ItemsHandler {
 // @Param        sort     query  string false "Sort field"
 // @Param        order    query  string false "ASC or DESC"
 // @Produce      json
-// @Success      200 {object} map[string]interface{}
-// @Failure      400 {object} map[string]string
-// @Failure      401 {object} map[string]string
-// @Failure      403 {object} map[string]string
+// @Success      200 {object} models.ItemsListResponse
+// @Failure      400 {object} models.ErrorResponse
+// @Failure      401 {object} models.ErrorResponse
+// @Failure      403 {object} models.ErrorResponse
 // @Router       /items/{table} [get]
 func (h *ItemsHandler) GetItems(c *gin.Context) {
 	tableName := c.Param("table")
@@ -214,14 +216,16 @@ func (h *ItemsHandler) GetItems(c *gin.Context) {
 // @Summary      Get item
 // @Tags         items
 // @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Description  Retrieve a specific item by ID. Requires authentication via JWT Bearer token or API key.
 // @Param        table   path      string true  "Table name"
 // @Param        id      path      string true  "Item ID"
 // @Produce      json
-// @Success      200 {object} map[string]interface{}
-// @Failure      400 {object} map[string]string
-// @Failure      401 {object} map[string]string
-// @Failure      403 {object} map[string]string
-// @Failure      404 {object} map[string]string
+// @Success      200 {object} models.ItemResponse
+// @Failure      400 {object} models.ErrorResponse
+// @Failure      401 {object} models.ErrorResponse
+// @Failure      403 {object} models.ErrorResponse
+// @Failure      404 {object} models.ErrorResponse
 // @Router       /items/{table}/{id} [get]
 func (h *ItemsHandler) GetItem(c *gin.Context) {
 	tableName := c.Param("table")
@@ -363,13 +367,16 @@ func (h *ItemsHandler) GetItem(c *gin.Context) {
 // @Summary      Create item
 // @Tags         items
 // @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Description  Create a new item in the specified table. Requires authentication via JWT Bearer token or API key.
 // @Param        table   path      string true  "Table name"
+// @Param        body    body      map[string]interface{} true "Item data"
 // @Accept       json
 // @Produce      json
-// @Success      201 {object} map[string]interface{}
-// @Failure      400 {object} map[string]string
-// @Failure      401 {object} map[string]string
-// @Failure      403 {object} map[string]string
+// @Success      201 {object} models.CreateItemResponse
+// @Failure      400 {object} models.ErrorResponse
+// @Failure      401 {object} models.ErrorResponse
+// @Failure      403 {object} models.ErrorResponse
 // @Router       /items/{table} [post]
 func (h *ItemsHandler) CreateItem(c *gin.Context) {
 	tableName := c.Param("table")
@@ -452,11 +459,14 @@ func (h *ItemsHandler) CreateItem(c *gin.Context) {
 // @Summary      Update item
 // @Tags         items
 // @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Description  Update an existing item in the specified table. Requires authentication via JWT Bearer token or API key.
 // @Param        table   path      string true  "Table name"
 // @Param        id      path      string true  "Item ID"
+// @Param        body    body      map[string]interface{} true "Item data to update"
 // @Accept       json
 // @Produce      json
-// @Success      200 {object} map[string]interface{}
+// @Success      200 {object} models.UpdateItemResponse
 // @Failure      400 {object} map[string]string
 // @Failure      401 {object} map[string]string
 // @Failure      403 {object} map[string]string
@@ -546,14 +556,16 @@ func (h *ItemsHandler) UpdateItem(c *gin.Context) {
 // @Summary      Delete item
 // @Tags         items
 // @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Description  Delete an item from the specified table. Requires authentication via JWT Bearer token or API key.
 // @Param        table   path      string true  "Table name"
 // @Param        id      path      string true  "Item ID"
 // @Produce      json
-// @Success      200 {object} map[string]interface{}
-// @Failure      400 {object} map[string]string
-// @Failure      401 {object} map[string]string
-// @Failure      403 {object} map[string]string
-// @Failure      404 {object} map[string]string
+// @Success      200 {object} models.DeleteItemResponse
+// @Failure      400 {object} models.ErrorResponse
+// @Failure      401 {object} models.ErrorResponse
+// @Failure      403 {object} models.ErrorResponse
+// @Failure      404 {object} models.ErrorResponse
 // @Router       /items/{table}/{id} [delete]
 func (h *ItemsHandler) DeleteItem(c *gin.Context) {
 	tableName := c.Param("table")
