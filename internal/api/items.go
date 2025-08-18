@@ -150,12 +150,19 @@ func NewItemsHandler(db *db.DB) *ItemsHandler {
 //	  "meta": {"table": "products", "count": 1, "type": "data"}
 //	}
 //
-// @Summary      List items
+// @Summary      List items from dynamic table
 // @Tags         items
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Description  Retrieve a list of items from a specified table. Requires authentication via JWT Bearer token or API key.
-// @Param        table    path   string true  "Table name"
+// @Description  Retrieve a paginated list of items from any dynamic table in the system. This endpoint works with both core schema tables (users, roles, permissions, collections, fields, api-keys) and custom dynamic tables (e.g., blog_posts, customers, products). The API automatically adapts to the table's schema, applying filters, sorting, and pagination. Requires authentication via JWT Bearer token or API key.
+// @Param        table    path   string true  "Table name (e.g., 'users', 'blog_posts', 'customers')"
+// @Param        limit    query  int    false "Limit (max 500, default 25)"
+// @Param        offset   query  int    false "Offset for pagination"
+// @Param        page     query  int    false "Page number (1-based, alternative to offset)"
+// @Param        per_page query  int    false "Items per page (alternative to limit)"
+// @Param        sort     query  string false "Sort field (e.g., 'created_at', 'name', 'email')"
+// @Param        order    query  string false "Sort order: ASC or DESC (default: DESC)"
+// @Param        filter   query  string false "JSON filter object for advanced filtering"
 // @Param        limit    query  int    false "Limit"
 // @Param        offset   query  int    false "Offset"
 // @Param        page     query  int    false "Page (1-based)"
@@ -213,12 +220,12 @@ func (h *ItemsHandler) GetItems(c *gin.Context) {
 }
 
 // GetItem handles GET /items/:table/:id requests
-// @Summary      Get item
+// @Summary      Get item from dynamic table
 // @Tags         items
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Description  Retrieve a specific item by ID. Requires authentication via JWT Bearer token or API key.
-// @Param        table   path      string true  "Table name"
+// @Description  Retrieve a specific item by ID from any dynamic table in the system. This endpoint works with both core schema tables and custom dynamic tables. Requires authentication via JWT Bearer token or API key.
+// @Param        table   path      string true  "Table name (e.g., 'users', 'blog_posts', 'customers')"
 // @Param        id      path      string true  "Item ID"
 // @Produce      json
 // @Success      200 {object} models.ItemResponse
@@ -364,12 +371,12 @@ func (h *ItemsHandler) GetItem(c *gin.Context) {
 //   - 403: User lacks permission to create in this table
 //   - 500: Internal server error during creation
 //
-// @Summary      Create item
+// @Summary      Create item in dynamic table
 // @Tags         items
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Description  Create a new item in the specified table. Requires authentication via JWT Bearer token or API key.
-// @Param        table   path      string true  "Table name"
+// @Description  Create a new item in any dynamic table in the system. This endpoint works with both core schema tables and custom dynamic tables. The item structure depends on the table's schema (fields, validation rules, etc.). Requires authentication via JWT Bearer token or API key.
+// @Param        table   path      string true  "Table name (e.g., 'users', 'blog_posts', 'customers')"
 // @Param        body    body      map[string]interface{} true "Item data"
 // @Accept       json
 // @Produce      json
@@ -456,12 +463,12 @@ func (h *ItemsHandler) CreateItem(c *gin.Context) {
 //   - 404: Item not found or not accessible to user
 //   - 500: Internal server error during update
 //
-// @Summary      Update item
+// @Summary      Update item in dynamic table
 // @Tags         items
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Description  Update an existing item in the specified table. Requires authentication via JWT Bearer token or API key.
-// @Param        table   path      string true  "Table name"
+// @Description  Update an existing item in any dynamic table in the system. This endpoint works with both core schema tables and custom dynamic tables. Only the fields provided in the request body will be updated. Requires authentication via JWT Bearer token or API key.
+// @Param        table   path      string true  "Table name (e.g., 'users', 'blog_posts', 'customers')"
 // @Param        id      path      string true  "Item ID"
 // @Param        body    body      map[string]interface{} true "Item data to update"
 // @Accept       json
@@ -553,12 +560,12 @@ func (h *ItemsHandler) UpdateItem(c *gin.Context) {
 //   - 500: Internal server error during deletion
 //
 // Note: Deletions may cascade to related data depending on table relationships
-// @Summary      Delete item
+// @Summary      Delete item from dynamic table
 // @Tags         items
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Description  Delete an item from the specified table. Requires authentication via JWT Bearer token or API key.
-// @Param        table   path      string true  "Table name"
+// @Description  Delete an item from any dynamic table in the system. This endpoint works with both core schema tables and custom dynamic tables. The deletion is permanent and cannot be undone. Requires authentication via JWT Bearer token or API key.
+// @Param        table   path      string true  "Table name (e.g., 'users', 'blog_posts', 'customers')"
 // @Param        id      path      string true  "Item ID"
 // @Produce      json
 // @Success      200 {object} models.DeleteItemResponse

@@ -92,7 +92,7 @@ func main() {
 		auth.GET("/me", middleware.AuthMiddleware(cfg, database), authHandler.Me)
 	}
 
-	// Items routes (protected)
+	// Items routes (protected) - Dynamic table access
 	items := router.Group("/items")
 	items.Use(middleware.AuthMiddleware(cfg, database))
 	{
@@ -111,7 +111,7 @@ func main() {
 	// @Router       / [get]
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "Go RBAC API - Directus-style API with Role-Based Access Control",
+			"message": "Dynamic auto-generated REST API with Role-Based Access Control on Postgres",
 			"version": "1.0.0",
 			"endpoints": gin.H{
 				"health": "/health",
@@ -127,7 +127,7 @@ func main() {
 					"delete": "DELETE /items/:table/:id",
 				},
 			},
-			"sample_tables": []string{"products", "customers", "orders"},
+			"sample_tables": []string{"blog_posts", "customers"},
 			"default_admin": gin.H{
 				"email":    "admin@example.com",
 				"password": "password",

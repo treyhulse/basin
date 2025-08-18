@@ -232,6 +232,9 @@ docker-compose down -v
 docker-compose up -d
 ```
 
+**💡 Swagger Generation:** The database API docs can be updated with `swag init -g cmd/main.go`.
+
+
 **💡 Pro Tip:** The database data persists between stops/starts, so you won't lose your data when using `make stop` and `make start`.
 
 ---

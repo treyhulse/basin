@@ -209,13 +209,45 @@ paths:
       - auth
   /items/{table}:
     get:
-      description: Retrieve a list of items from a specified table. Requires authentication
-        via JWT Bearer token or API key.
+      description: Retrieve a paginated list of items from any dynamic table in the
+        system. This endpoint works with both core schema tables (users, roles, permissions,
+        collections, fields, api-keys) and custom dynamic tables (e.g., blog_posts,
+        customers, products). The API automatically adapts to the table's schema,
+        applying filters, sorting, and pagination. Requires authentication via JWT
+        Bearer token or API key.
       parameters:
-      - description: Table name
+      - description: Table name (e.g., 'users', 'blog_posts', 'customers')
         in: path
         name: table
         required: true
+        type: string
+      - description: Limit (max 500, default 25)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      - description: Page number (1-based, alternative to offset)
+        in: query
+        name: page
+        type: integer
+      - description: Items per page (alternative to limit)
+        in: query
+        name: per_page
+        type: integer
+      - description: Sort field (e.g., 'created_at', 'name', 'email')
+        in: query
+        name: sort
+        type: string
+      - description: 'Sort order: ASC or DESC (default: DESC)'
+        in: query
+        name: order
+        type: string
+      - description: JSON filter object for advanced filtering
+        in: query
+        name: filter
         type: string
       - description: Limit
         in: query
@@ -263,16 +295,18 @@ paths:
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
-      summary: List items
+      summary: List items from dynamic table
       tags:
       - items
     post:
       consumes:
       - application/json
-      description: Create a new item in the specified table. Requires authentication
+      description: Create a new item in any dynamic table in the system. This endpoint
+        works with both core schema tables and custom dynamic tables. The item structure
+        depends on the table's schema (fields, validation rules, etc.). Requires authentication
         via JWT Bearer token or API key.
       parameters:
-      - description: Table name
+      - description: Table name (e.g., 'users', 'blog_posts', 'customers')
         in: path
         name: table
         required: true
@@ -306,15 +340,17 @@ paths:
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
-      summary: Create item
+      summary: Create item in dynamic table
       tags:
       - items
   /items/{table}/{id}:
     delete:
-      description: Delete an item from the specified table. Requires authentication
-        via JWT Bearer token or API key.
+      description: Delete an item from any dynamic table in the system. This endpoint
+        works with both core schema tables and custom dynamic tables. The deletion
+        is permanent and cannot be undone. Requires authentication via JWT Bearer
+        token or API key.
       parameters:
-      - description: Table name
+      - description: Table name (e.g., 'users', 'blog_posts', 'customers')
         in: path
         name: table
         required: true
@@ -350,14 +386,15 @@ paths:
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
-      summary: Delete item
+      summary: Delete item from dynamic table
       tags:
       - items
     get:
-      description: Retrieve a specific item by ID. Requires authentication via JWT
-        Bearer token or API key.
+      description: Retrieve a specific item by ID from any dynamic table in the system.
+        This endpoint works with both core schema tables and custom dynamic tables.
+        Requires authentication via JWT Bearer token or API key.
       parameters:
-      - description: Table name
+      - description: Table name (e.g., 'users', 'blog_posts', 'customers')
         in: path
         name: table
         required: true
@@ -393,16 +430,18 @@ paths:
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
-      summary: Get item
+      summary: Get item from dynamic table
       tags:
       - items
     put:
       consumes:
       - application/json
-      description: Update an existing item in the specified table. Requires authentication
+      description: Update an existing item in any dynamic table in the system. This
+        endpoint works with both core schema tables and custom dynamic tables. Only
+        the fields provided in the request body will be updated. Requires authentication
         via JWT Bearer token or API key.
       parameters:
-      - description: Table name
+      - description: Table name (e.g., 'users', 'blog_posts', 'customers')
         in: path
         name: table
         required: true
@@ -453,9 +492,1367 @@ paths:
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
-      summary: Update item
+      summary: Update item in dynamic table
       tags:
       - items
+  /items/api-keys:
+    get:
+      description: Retrieve a list of API keys in the system. Requires authentication
+        and API key management permissions.
+      parameters:
+      - description: Limit (max 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Sort field (name, user_id, created_at)
+        in: query
+        name: sort
+        type: string
+      - description: ASC or DESC
+        in: query
+        name: order
+        type: string
+      - description: Filter by API key name
+        in: query
+        name: name
+        type: string
+      - description: Filter by user ID
+        in: query
+        name: user_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: List API keys
+      tags:
+      - core-api-keys
+    post:
+      consumes:
+      - application/json
+      description: Create a new API key in the system. Requires authentication and
+        API key creation permissions.
+      parameters:
+      - description: API Key data (name, user_id, permissions)
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CreateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create API key
+      tags:
+      - core-api-keys
+  /items/api-keys/{id}:
+    delete:
+      description: Delete an API key from the system. Requires authentication and
+        API key deletion permissions.
+      parameters:
+      - description: API Key ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeleteItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete API key
+      tags:
+      - core-api-keys
+    get:
+      description: Retrieve a specific API key by ID. Requires authentication and
+        API key management permissions.
+      parameters:
+      - description: API Key ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get API key
+      tags:
+      - core-api-keys
+    put:
+      consumes:
+      - application/json
+      description: Update an existing API key. Requires authentication and API key
+        update permissions.
+      parameters:
+      - description: API Key ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: API Key data to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update API key
+      tags:
+      - core-api-keys
+  /items/collections:
+    get:
+      description: Retrieve a list of collections in the system. Requires authentication
+        and collection management permissions.
+      parameters:
+      - description: Limit (max 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Sort field (name, created_at)
+        in: query
+        name: sort
+        type: string
+      - description: ASC or DESC
+        in: query
+        name: order
+        type: string
+      - description: Filter by collection name
+        in: query
+        name: name
+        type: string
+      - description: Filter by icon
+        in: query
+        name: icon
+        type: string
+      - description: Filter by primary status
+        in: query
+        name: is_primary
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: List collections
+      tags:
+      - core-collections
+    post:
+      consumes:
+      - application/json
+      description: Create a new collection in the system. Requires authentication
+        and collection creation permissions.
+      parameters:
+      - description: Collection data (name, description, icon, is_primary, tenant_id)
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CreateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create collection
+      tags:
+      - core-collections
+  /items/collections/{id}:
+    delete:
+      description: Delete a collection from the system. Requires authentication and
+        collection deletion permissions.
+      parameters:
+      - description: Collection ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeleteItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete collection
+      tags:
+      - core-collections
+    get:
+      description: Retrieve a specific collection by ID. Requires authentication and
+        collection management permissions.
+      parameters:
+      - description: Collection ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get collection
+      tags:
+      - core-collections
+    put:
+      consumes:
+      - application/json
+      description: Update an existing collection. Requires authentication and collection
+        update permissions.
+      parameters:
+      - description: Collection ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Collection data to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update collection
+      tags:
+      - core-collections
+  /items/fields:
+    get:
+      description: Retrieve a list of fields in the system. Requires authentication
+        and field management permissions.
+      parameters:
+      - description: Limit (max 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Sort field (name, collection_id, created_at)
+        in: query
+        name: sort
+        type: string
+      - description: ASC or DESC
+        in: query
+        name: order
+        type: string
+      - description: Filter by field name
+        in: query
+        name: name
+        type: string
+      - description: Filter by collection ID
+        in: query
+        name: collection_id
+        type: string
+      - description: Filter by field type (text, integer, boolean, jsonb, timestamp,
+          uuid)
+        in: query
+        name: field_type
+        type: string
+      - description: Filter by primary status
+        in: query
+        name: is_primary
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: List fields
+      tags:
+      - core-fields
+    post:
+      consumes:
+      - application/json
+      description: Create a new field in the system. Requires authentication and field
+        creation permissions.
+      parameters:
+      - description: Field data (name, collection_id, field_type, is_required, is_primary,
+          validation_rules, tenant_id)
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CreateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create field
+      tags:
+      - core-fields
+  /items/fields/{id}:
+    delete:
+      description: Delete a field from the system. Requires authentication and field
+        deletion permissions.
+      parameters:
+      - description: Field ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeleteItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete field
+      tags:
+      - core-fields
+    get:
+      description: Retrieve a specific field by ID. Requires authentication and field
+        management permissions.
+      parameters:
+      - description: Field ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get field
+      tags:
+      - core-fields
+    put:
+      consumes:
+      - application/json
+      description: Update an existing field. Requires authentication and field update
+        permissions.
+      parameters:
+      - description: Field ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Field data to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update field
+      tags:
+      - core-fields
+  /items/permissions:
+    get:
+      description: Retrieve a list of permissions in the system. Requires authentication
+        and permission management permissions.
+      parameters:
+      - description: Limit (max 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Sort field (table_name, action, created_at)
+        in: query
+        name: sort
+        type: string
+      - description: ASC or DESC
+        in: query
+        name: order
+        type: string
+      - description: Filter by table name
+        in: query
+        name: table_name
+        type: string
+      - description: Filter by action (read, create, update, delete)
+        in: query
+        name: action
+        type: string
+      - description: Filter by role ID
+        in: query
+        name: role_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: List permissions
+      tags:
+      - core-permissions
+    post:
+      consumes:
+      - application/json
+      description: Create a new permission in the system. Requires authentication
+        and permission creation permissions.
+      parameters:
+      - description: Permission data (role_id, table_name, action, tenant_id)
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CreateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create permission
+      tags:
+      - core-permissions
+  /items/permissions/{id}:
+    delete:
+      description: Delete a permission from the system. Requires authentication and
+        permission deletion permissions.
+      parameters:
+      - description: Permission ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeleteItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete permission
+      tags:
+      - core-permissions
+    get:
+      description: Retrieve a specific permission by ID. Requires authentication and
+        permission management permissions.
+      parameters:
+      - description: Permission ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get permission
+      tags:
+      - core-permissions
+    put:
+      consumes:
+      - application/json
+      description: Update an existing permission. Requires authentication and permission
+        update permissions.
+      parameters:
+      - description: Permission ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Permission data to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update permission
+      tags:
+      - core-permissions
+  /items/roles:
+    get:
+      description: Retrieve a list of roles in the system. Requires authentication
+        and role management permissions.
+      parameters:
+      - description: Limit (max 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Sort field (name, created_at)
+        in: query
+        name: sort
+        type: string
+      - description: ASC or DESC
+        in: query
+        name: order
+        type: string
+      - description: Filter by role name
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: List roles
+      tags:
+      - core-roles
+    post:
+      consumes:
+      - application/json
+      description: Create a new role in the system. Requires authentication and role
+        creation permissions.
+      parameters:
+      - description: Role data (name, description, tenant_id)
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CreateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create role
+      tags:
+      - core-roles
+  /items/roles/{id}:
+    delete:
+      description: Delete a role from the system. Requires authentication and role
+        deletion permissions.
+      parameters:
+      - description: Role ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeleteItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete role
+      tags:
+      - core-roles
+    get:
+      description: Retrieve a specific role by ID. Requires authentication and role
+        management permissions.
+      parameters:
+      - description: Role ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get role
+      tags:
+      - core-roles
+    put:
+      consumes:
+      - application/json
+      description: Update an existing role. Requires authentication and role update
+        permissions.
+      parameters:
+      - description: Role ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role data to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update role
+      tags:
+      - core-roles
+  /items/users:
+    get:
+      description: Retrieve a list of users in the system. Requires authentication
+        and user management permissions.
+      parameters:
+      - description: Limit (max 500)
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Page (1-based)
+        in: query
+        name: page
+        type: integer
+      - description: Per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Sort field (email, first_name, last_name, created_at)
+        in: query
+        name: sort
+        type: string
+      - description: ASC or DESC
+        in: query
+        name: order
+        type: string
+      - description: Filter by email
+        in: query
+        name: email
+        type: string
+      - description: Filter by active status
+        in: query
+        name: is_active
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: List users
+      tags:
+      - core-users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user in the system. Requires authentication and user
+        creation permissions.
+      parameters:
+      - description: User data (email, first_name, last_name, password, role_id, tenant_id)
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CreateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create user
+      tags:
+      - core-users
+  /items/users/{id}:
+    delete:
+      description: Delete a user from the system. Requires authentication and user
+        deletion permissions.
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeleteItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete user
+      tags:
+      - core-users
+    get:
+      description: Retrieve a specific user by ID. Requires authentication and user
+        management permissions.
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get user
+      tags:
+      - core-users
+    put:
+      consumes:
+      - application/json
+      description: Update an existing user. Requires authentication and user update
+        permissions.
+      parameters:
+      - description: User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User data to update
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdateItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update user
+      tags:
+      - core-users
 securityDefinitions:
   ApiKeyAuth:
     description: 'API key for programmatic access (format: Bearer YOUR_API_KEY)'
