@@ -54,13 +54,13 @@ setup:
 	@echo SUCCESS: sqlc installed
 	@echo.
 	@echo Starting database...
-	@docker-compose down 2>nul
+	@docker-compose down -v 2>nul
 	@docker-compose up -d
 	@echo Waiting for database to be ready...
 	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
 	@echo.
-	@echo Applying migrations...
-	@for %%f in (migrations\*.sql) do @echo   Applying %%~nxf... && type "%%f" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
+	@echo Applying consolidated migration...
+	@type "migrations\001_complete_schema.sql" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
 	@echo SUCCESS: Migrations applied
 	@echo.
 	@echo Generating database code...
@@ -79,7 +79,7 @@ start:
 	@echo Basin API - Cold Start
 	@echo.
 	@echo Stopping any existing containers...
-	@docker-compose down 2>nul
+	@docker-compose down -v 2>nul
 	@echo.
 	@echo Starting database...
 	@docker-compose up -d
@@ -199,7 +199,8 @@ migrate:
 	@echo Waiting for database to be ready...
 	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
 	@echo.
-	@for %%f in (migrations\*.sql) do @echo   Applying %%~nxf... && type "%%f" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
+	@echo Applying consolidated migration...
+	@type "migrations\001_complete_schema.sql" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
 	@echo SUCCESS: Migrations applied
 
 # Start PostgreSQL with Docker

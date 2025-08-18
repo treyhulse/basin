@@ -15,20 +15,14 @@ type Querier interface {
 	CreateCollection(ctx context.Context, arg CreateCollectionParams) (Collection, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
 	CreateField(ctx context.Context, arg CreateFieldParams) (Field, error)
-	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
-	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
 	CreatePermission(ctx context.Context, arg CreatePermissionParams) (Permission, error)
-	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
 	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteAPIKey(ctx context.Context, id uuid.UUID) error
 	DeleteCollection(ctx context.Context, id uuid.UUID) error
 	DeleteCustomer(ctx context.Context, id uuid.UUID) error
 	DeleteField(ctx context.Context, id uuid.UUID) error
-	DeleteOrder(ctx context.Context, id uuid.UUID) error
-	DeleteOrderItem(ctx context.Context, id uuid.UUID) error
 	DeletePermission(ctx context.Context, id uuid.UUID) error
-	DeleteProduct(ctx context.Context, id uuid.UUID) error
 	DeleteTenant(ctx context.Context, id uuid.UUID) error
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 	// API Key Management Queries
@@ -43,18 +37,12 @@ type Querier interface {
 	GetField(ctx context.Context, id uuid.UUID) (Field, error)
 	GetFields(ctx context.Context) ([]Field, error)
 	GetFieldsByCollection(ctx context.Context, collectionID uuid.NullUUID) ([]Field, error)
-	GetOrder(ctx context.Context, id uuid.UUID) (Order, error)
-	GetOrderItem(ctx context.Context, id uuid.UUID) (OrderItem, error)
-	GetOrderItems(ctx context.Context) ([]OrderItem, error)
-	GetOrders(ctx context.Context) ([]Order, error)
 	GetPermissionsByRole(ctx context.Context, roleID uuid.NullUUID) ([]Permission, error)
 	GetPermissionsByRoleAndAction(ctx context.Context, arg GetPermissionsByRoleAndActionParams) ([]Permission, error)
 	GetPermissionsByRoleAndTable(ctx context.Context, arg GetPermissionsByRoleAndTableParams) ([]Permission, error)
 	// Enhanced Permission Queries with Tenant Support
 	GetPermissionsByRoleAndTenant(ctx context.Context, arg GetPermissionsByRoleAndTenantParams) ([]Permission, error)
 	GetPermissionsByUserAndTenant(ctx context.Context, arg GetPermissionsByUserAndTenantParams) ([]Permission, error)
-	GetProduct(ctx context.Context, id uuid.UUID) (Product, error)
-	GetProducts(ctx context.Context) ([]Product, error)
 	GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
 	// Tenant Management Queries
@@ -70,10 +58,7 @@ type Querier interface {
 	UpdateCollection(ctx context.Context, arg UpdateCollectionParams) (Collection, error)
 	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
 	UpdateField(ctx context.Context, arg UpdateFieldParams) (Field, error)
-	UpdateOrder(ctx context.Context, arg UpdateOrderParams) (Order, error)
-	UpdateOrderItem(ctx context.Context, arg UpdateOrderItemParams) (OrderItem, error)
 	UpdatePermission(ctx context.Context, arg UpdatePermissionParams) (Permission, error)
-	UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error)
 	UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Tenant, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }

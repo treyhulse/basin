@@ -49,7 +49,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 
 const createCollection = `-- name: CreateCollection :one
 INSERT INTO collections (id, name, display_name, description, icon, is_system, tenant_id, created_by) 
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, display_name, description, icon, is_system, created_at, updated_at, tenant_id, created_by, updated_by
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, display_name, description, icon, is_system, tenant_id, created_by, updated_by, created_at, updated_at
 `
 
 type CreateCollectionParams struct {
@@ -82,11 +82,11 @@ func (q *Queries) CreateCollection(ctx context.Context, arg CreateCollectionPara
 		&i.Description,
 		&i.Icon,
 		&i.IsSystem,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.TenantID,
 		&i.CreatedBy,
 		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -127,7 +127,7 @@ func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) 
 
 const createField = `-- name: CreateField :one
 INSERT INTO fields (id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, relation_config, sort_order, tenant_id) 
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, relation_config, sort_order, created_at, updated_at, tenant_id
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, sort_order, relation_config, tenant_id, created_at, updated_at
 `
 
 type CreateFieldParams struct {
@@ -174,74 +174,18 @@ func (q *Queries) CreateField(ctx context.Context, arg CreateFieldParams) (Field
 		&i.IsUnique,
 		&i.DefaultValue,
 		&i.ValidationRules,
-		&i.RelationConfig,
 		&i.SortOrder,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.RelationConfig,
 		&i.TenantID,
-	)
-	return i, err
-}
-
-const createOrder = `-- name: CreateOrder :one
-INSERT INTO orders (customer_id, total_amount, notes) VALUES ($1, $2, $3) RETURNING id, customer_id, order_date, status, total_amount, notes, created_at, updated_at
-`
-
-type CreateOrderParams struct {
-	CustomerID  uuid.NullUUID  `json:"customer_id"`
-	TotalAmount string         `json:"total_amount"`
-	Notes       sql.NullString `json:"notes"`
-}
-
-func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error) {
-	row := q.db.QueryRowContext(ctx, createOrder, arg.CustomerID, arg.TotalAmount, arg.Notes)
-	var i Order
-	err := row.Scan(
-		&i.ID,
-		&i.CustomerID,
-		&i.OrderDate,
-		&i.Status,
-		&i.TotalAmount,
-		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const createOrderItem = `-- name: CreateOrderItem :one
-INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES ($1, $2, $3, $4) RETURNING id, order_id, product_id, quantity, unit_price, created_at
-`
-
-type CreateOrderItemParams struct {
-	OrderID   uuid.NullUUID `json:"order_id"`
-	ProductID uuid.NullUUID `json:"product_id"`
-	Quantity  int32         `json:"quantity"`
-	UnitPrice string        `json:"unit_price"`
-}
-
-func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error) {
-	row := q.db.QueryRowContext(ctx, createOrderItem,
-		arg.OrderID,
-		arg.ProductID,
-		arg.Quantity,
-		arg.UnitPrice,
-	)
-	var i OrderItem
-	err := row.Scan(
-		&i.ID,
-		&i.OrderID,
-		&i.ProductID,
-		&i.Quantity,
-		&i.UnitPrice,
-		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const createPermission = `-- name: CreatePermission :one
 INSERT INTO permissions (id, role_id, table_name, action, field_filter, allowed_fields, tenant_id) 
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, role_id, table_name, action, field_filter, allowed_fields, created_at, updated_at, tenant_id
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, role_id, table_name, action, field_filter, allowed_fields, tenant_id, created_at, updated_at
 `
 
 type CreatePermissionParams struct {
@@ -272,41 +216,7 @@ func (q *Queries) CreatePermission(ctx context.Context, arg CreatePermissionPara
 		&i.Action,
 		&i.FieldFilter,
 		pq.Array(&i.AllowedFields),
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.TenantID,
-	)
-	return i, err
-}
-
-const createProduct = `-- name: CreateProduct :one
-INSERT INTO products (name, description, price, category, stock_quantity) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, description, price, category, stock_quantity, created_at, updated_at
-`
-
-type CreateProductParams struct {
-	Name          string         `json:"name"`
-	Description   sql.NullString `json:"description"`
-	Price         string         `json:"price"`
-	Category      sql.NullString `json:"category"`
-	StockQuantity sql.NullInt32  `json:"stock_quantity"`
-}
-
-func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error) {
-	row := q.db.QueryRowContext(ctx, createProduct,
-		arg.Name,
-		arg.Description,
-		arg.Price,
-		arg.Category,
-		arg.StockQuantity,
-	)
-	var i Product
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.Price,
-		&i.Category,
-		&i.StockQuantity,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -349,7 +259,7 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, email, password_hash, first_name, last_name, tenant_id) 
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, tenant_id
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, password_hash, first_name, last_name, is_active, tenant_id, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -378,9 +288,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.FirstName,
 		&i.LastName,
 		&i.IsActive,
+		&i.TenantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
 	)
 	return i, err
 }
@@ -421,39 +331,12 @@ func (q *Queries) DeleteField(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const deleteOrder = `-- name: DeleteOrder :exec
-DELETE FROM orders WHERE id = $1
-`
-
-func (q *Queries) DeleteOrder(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteOrder, id)
-	return err
-}
-
-const deleteOrderItem = `-- name: DeleteOrderItem :exec
-DELETE FROM order_items WHERE id = $1
-`
-
-func (q *Queries) DeleteOrderItem(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteOrderItem, id)
-	return err
-}
-
 const deletePermission = `-- name: DeletePermission :exec
 DELETE FROM permissions WHERE id = $1
 `
 
 func (q *Queries) DeletePermission(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deletePermission, id)
-	return err
-}
-
-const deleteProduct = `-- name: DeleteProduct :exec
-DELETE FROM products WHERE id = $1
-`
-
-func (q *Queries) DeleteProduct(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteProduct, id)
 	return err
 }
 
@@ -556,7 +439,7 @@ func (q *Queries) GetAPIKeysByUser(ctx context.Context, userID uuid.UUID) ([]Api
 }
 
 const getCollection = `-- name: GetCollection :one
-SELECT id, name, display_name, description, icon, is_system, created_at, updated_at, tenant_id, created_by, updated_by FROM collections WHERE id = $1
+SELECT id, name, display_name, description, icon, is_system, tenant_id, created_by, updated_by, created_at, updated_at FROM collections WHERE id = $1
 `
 
 func (q *Queries) GetCollection(ctx context.Context, id uuid.UUID) (Collection, error) {
@@ -569,17 +452,17 @@ func (q *Queries) GetCollection(ctx context.Context, id uuid.UUID) (Collection, 
 		&i.Description,
 		&i.Icon,
 		&i.IsSystem,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.TenantID,
 		&i.CreatedBy,
 		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getCollections = `-- name: GetCollections :many
-SELECT id, name, display_name, description, icon, is_system, created_at, updated_at, tenant_id, created_by, updated_by FROM collections ORDER BY name
+SELECT id, name, display_name, description, icon, is_system, tenant_id, created_by, updated_by, created_at, updated_at FROM collections ORDER BY name
 `
 
 // Schema Management Queries
@@ -599,11 +482,11 @@ func (q *Queries) GetCollections(ctx context.Context) ([]Collection, error) {
 			&i.Description,
 			&i.Icon,
 			&i.IsSystem,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.TenantID,
 			&i.CreatedBy,
 			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -675,7 +558,7 @@ func (q *Queries) GetCustomers(ctx context.Context) ([]Customer, error) {
 }
 
 const getField = `-- name: GetField :one
-SELECT id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, relation_config, sort_order, created_at, updated_at, tenant_id FROM fields WHERE id = $1
+SELECT id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, sort_order, relation_config, tenant_id, created_at, updated_at FROM fields WHERE id = $1
 `
 
 func (q *Queries) GetField(ctx context.Context, id uuid.UUID) (Field, error) {
@@ -692,17 +575,17 @@ func (q *Queries) GetField(ctx context.Context, id uuid.UUID) (Field, error) {
 		&i.IsUnique,
 		&i.DefaultValue,
 		&i.ValidationRules,
-		&i.RelationConfig,
 		&i.SortOrder,
+		&i.RelationConfig,
+		&i.TenantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
 	)
 	return i, err
 }
 
 const getFields = `-- name: GetFields :many
-SELECT id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, relation_config, sort_order, created_at, updated_at, tenant_id FROM fields ORDER BY sort_order
+SELECT id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, sort_order, relation_config, tenant_id, created_at, updated_at FROM fields ORDER BY sort_order
 `
 
 func (q *Queries) GetFields(ctx context.Context) ([]Field, error) {
@@ -725,11 +608,11 @@ func (q *Queries) GetFields(ctx context.Context) ([]Field, error) {
 			&i.IsUnique,
 			&i.DefaultValue,
 			&i.ValidationRules,
-			&i.RelationConfig,
 			&i.SortOrder,
+			&i.RelationConfig,
+			&i.TenantID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -745,7 +628,7 @@ func (q *Queries) GetFields(ctx context.Context) ([]Field, error) {
 }
 
 const getFieldsByCollection = `-- name: GetFieldsByCollection :many
-SELECT id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, relation_config, sort_order, created_at, updated_at, tenant_id FROM fields WHERE collection_id = $1 ORDER BY sort_order
+SELECT id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, sort_order, relation_config, tenant_id, created_at, updated_at FROM fields WHERE collection_id = $1 ORDER BY sort_order
 `
 
 func (q *Queries) GetFieldsByCollection(ctx context.Context, collectionID uuid.NullUUID) ([]Field, error) {
@@ -768,117 +651,9 @@ func (q *Queries) GetFieldsByCollection(ctx context.Context, collectionID uuid.N
 			&i.IsUnique,
 			&i.DefaultValue,
 			&i.ValidationRules,
-			&i.RelationConfig,
 			&i.SortOrder,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.RelationConfig,
 			&i.TenantID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getOrder = `-- name: GetOrder :one
-SELECT id, customer_id, order_date, status, total_amount, notes, created_at, updated_at FROM orders WHERE id = $1
-`
-
-func (q *Queries) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
-	row := q.db.QueryRowContext(ctx, getOrder, id)
-	var i Order
-	err := row.Scan(
-		&i.ID,
-		&i.CustomerID,
-		&i.OrderDate,
-		&i.Status,
-		&i.TotalAmount,
-		&i.Notes,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getOrderItem = `-- name: GetOrderItem :one
-SELECT id, order_id, product_id, quantity, unit_price, created_at FROM order_items WHERE id = $1
-`
-
-func (q *Queries) GetOrderItem(ctx context.Context, id uuid.UUID) (OrderItem, error) {
-	row := q.db.QueryRowContext(ctx, getOrderItem, id)
-	var i OrderItem
-	err := row.Scan(
-		&i.ID,
-		&i.OrderID,
-		&i.ProductID,
-		&i.Quantity,
-		&i.UnitPrice,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getOrderItems = `-- name: GetOrderItems :many
-SELECT id, order_id, product_id, quantity, unit_price, created_at FROM order_items
-`
-
-func (q *Queries) GetOrderItems(ctx context.Context) ([]OrderItem, error) {
-	rows, err := q.db.QueryContext(ctx, getOrderItems)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []OrderItem{}
-	for rows.Next() {
-		var i OrderItem
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrderID,
-			&i.ProductID,
-			&i.Quantity,
-			&i.UnitPrice,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getOrders = `-- name: GetOrders :many
-SELECT id, customer_id, order_date, status, total_amount, notes, created_at, updated_at FROM orders
-`
-
-func (q *Queries) GetOrders(ctx context.Context) ([]Order, error) {
-	rows, err := q.db.QueryContext(ctx, getOrders)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Order{}
-	for rows.Next() {
-		var i Order
-		if err := rows.Scan(
-			&i.ID,
-			&i.CustomerID,
-			&i.OrderDate,
-			&i.Status,
-			&i.TotalAmount,
-			&i.Notes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -896,7 +671,7 @@ func (q *Queries) GetOrders(ctx context.Context) ([]Order, error) {
 }
 
 const getPermissionsByRole = `-- name: GetPermissionsByRole :many
-SELECT id, role_id, table_name, action, field_filter, allowed_fields, created_at, updated_at, tenant_id FROM permissions WHERE role_id = $1
+SELECT id, role_id, table_name, action, field_filter, allowed_fields, tenant_id, created_at, updated_at FROM permissions WHERE role_id = $1
 `
 
 func (q *Queries) GetPermissionsByRole(ctx context.Context, roleID uuid.NullUUID) ([]Permission, error) {
@@ -915,9 +690,9 @@ func (q *Queries) GetPermissionsByRole(ctx context.Context, roleID uuid.NullUUID
 			&i.Action,
 			&i.FieldFilter,
 			pq.Array(&i.AllowedFields),
+			&i.TenantID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -933,7 +708,7 @@ func (q *Queries) GetPermissionsByRole(ctx context.Context, roleID uuid.NullUUID
 }
 
 const getPermissionsByRoleAndAction = `-- name: GetPermissionsByRoleAndAction :many
-SELECT id, role_id, table_name, action, field_filter, allowed_fields, created_at, updated_at, tenant_id FROM permissions WHERE role_id = $1 AND table_name = $2 AND action = $3
+SELECT id, role_id, table_name, action, field_filter, allowed_fields, tenant_id, created_at, updated_at FROM permissions WHERE role_id = $1 AND table_name = $2 AND action = $3
 `
 
 type GetPermissionsByRoleAndActionParams struct {
@@ -958,9 +733,9 @@ func (q *Queries) GetPermissionsByRoleAndAction(ctx context.Context, arg GetPerm
 			&i.Action,
 			&i.FieldFilter,
 			pq.Array(&i.AllowedFields),
+			&i.TenantID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -976,7 +751,7 @@ func (q *Queries) GetPermissionsByRoleAndAction(ctx context.Context, arg GetPerm
 }
 
 const getPermissionsByRoleAndTable = `-- name: GetPermissionsByRoleAndTable :many
-SELECT id, role_id, table_name, action, field_filter, allowed_fields, created_at, updated_at, tenant_id FROM permissions WHERE role_id = $1 AND table_name = $2
+SELECT id, role_id, table_name, action, field_filter, allowed_fields, tenant_id, created_at, updated_at FROM permissions WHERE role_id = $1 AND table_name = $2
 `
 
 type GetPermissionsByRoleAndTableParams struct {
@@ -1000,9 +775,9 @@ func (q *Queries) GetPermissionsByRoleAndTable(ctx context.Context, arg GetPermi
 			&i.Action,
 			&i.FieldFilter,
 			pq.Array(&i.AllowedFields),
+			&i.TenantID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -1018,7 +793,7 @@ func (q *Queries) GetPermissionsByRoleAndTable(ctx context.Context, arg GetPermi
 }
 
 const getPermissionsByRoleAndTenant = `-- name: GetPermissionsByRoleAndTenant :many
-SELECT id, role_id, table_name, action, field_filter, allowed_fields, created_at, updated_at, tenant_id FROM permissions WHERE role_id = $1 AND tenant_id = $2
+SELECT id, role_id, table_name, action, field_filter, allowed_fields, tenant_id, created_at, updated_at FROM permissions WHERE role_id = $1 AND tenant_id = $2
 `
 
 type GetPermissionsByRoleAndTenantParams struct {
@@ -1043,9 +818,9 @@ func (q *Queries) GetPermissionsByRoleAndTenant(ctx context.Context, arg GetPerm
 			&i.Action,
 			&i.FieldFilter,
 			pq.Array(&i.AllowedFields),
+			&i.TenantID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -1061,7 +836,7 @@ func (q *Queries) GetPermissionsByRoleAndTenant(ctx context.Context, arg GetPerm
 }
 
 const getPermissionsByUserAndTenant = `-- name: GetPermissionsByUserAndTenant :many
-SELECT p.id, p.role_id, p.table_name, p.action, p.field_filter, p.allowed_fields, p.created_at, p.updated_at, p.tenant_id FROM permissions p
+SELECT p.id, p.role_id, p.table_name, p.action, p.field_filter, p.allowed_fields, p.tenant_id, p.created_at, p.updated_at FROM permissions p
 JOIN user_roles ur ON p.role_id = ur.role_id
 WHERE ur.user_id = $1 AND p.tenant_id = $2
 `
@@ -1087,63 +862,7 @@ func (q *Queries) GetPermissionsByUserAndTenant(ctx context.Context, arg GetPerm
 			&i.Action,
 			&i.FieldFilter,
 			pq.Array(&i.AllowedFields),
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.TenantID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getProduct = `-- name: GetProduct :one
-SELECT id, name, description, price, category, stock_quantity, created_at, updated_at FROM products WHERE id = $1
-`
-
-func (q *Queries) GetProduct(ctx context.Context, id uuid.UUID) (Product, error) {
-	row := q.db.QueryRowContext(ctx, getProduct, id)
-	var i Product
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.Price,
-		&i.Category,
-		&i.StockQuantity,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getProducts = `-- name: GetProducts :many
-SELECT id, name, description, price, category, stock_quantity, created_at, updated_at FROM products
-`
-
-func (q *Queries) GetProducts(ctx context.Context) ([]Product, error) {
-	rows, err := q.db.QueryContext(ctx, getProducts)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Product{}
-	for rows.Next() {
-		var i Product
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Description,
-			&i.Price,
-			&i.Category,
-			&i.StockQuantity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1238,7 +957,7 @@ func (q *Queries) GetTenants(ctx context.Context) ([]Tenant, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, tenant_id FROM users WHERE email = $1
+SELECT id, email, password_hash, first_name, last_name, is_active, tenant_id, created_at, updated_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -1251,15 +970,15 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.FirstName,
 		&i.LastName,
 		&i.IsActive,
+		&i.TenantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, tenant_id FROM users WHERE id = $1
+SELECT id, email, password_hash, first_name, last_name, is_active, tenant_id, created_at, updated_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -1272,15 +991,15 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.FirstName,
 		&i.LastName,
 		&i.IsActive,
+		&i.TenantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
 	)
 	return i, err
 }
 
 const getUserRoles = `-- name: GetUserRoles :many
-SELECT r.id, r.name, r.description, r.created_at, r.updated_at, r.tenant_id FROM roles r
+SELECT r.id, r.name, r.description, r.tenant_id, r.created_at, r.updated_at FROM roles r
 JOIN user_roles ur ON r.id = ur.role_id
 WHERE ur.user_id = $1
 `
@@ -1298,9 +1017,9 @@ func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, e
 			&i.ID,
 			&i.Name,
 			&i.Description,
+			&i.TenantID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -1316,7 +1035,7 @@ func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, e
 }
 
 const getUserWithTenant = `-- name: GetUserWithTenant :one
-SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.is_active, u.created_at, u.updated_at, u.tenant_id, t.name as tenant_name, t.slug as tenant_slug 
+SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.is_active, u.tenant_id, u.created_at, u.updated_at, t.name as tenant_name, t.slug as tenant_slug 
 FROM users u 
 JOIN tenants t ON u.tenant_id = t.id 
 WHERE u.id = $1
@@ -1329,9 +1048,9 @@ type GetUserWithTenantRow struct {
 	FirstName    sql.NullString `json:"first_name"`
 	LastName     sql.NullString `json:"last_name"`
 	IsActive     sql.NullBool   `json:"is_active"`
+	TenantID     uuid.NullUUID  `json:"tenant_id"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 	UpdatedAt    sql.NullTime   `json:"updated_at"`
-	TenantID     uuid.NullUUID  `json:"tenant_id"`
 	TenantName   string         `json:"tenant_name"`
 	TenantSlug   string         `json:"tenant_slug"`
 }
@@ -1346,9 +1065,9 @@ func (q *Queries) GetUserWithTenant(ctx context.Context, id uuid.UUID) (GetUserW
 		&i.FirstName,
 		&i.LastName,
 		&i.IsActive,
+		&i.TenantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
 		&i.TenantName,
 		&i.TenantSlug,
 	)
@@ -1356,7 +1075,7 @@ func (q *Queries) GetUserWithTenant(ctx context.Context, id uuid.UUID) (GetUserW
 }
 
 const getUsersByTenant = `-- name: GetUsersByTenant :many
-SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, tenant_id FROM users WHERE tenant_id = $1 ORDER BY email
+SELECT id, email, password_hash, first_name, last_name, is_active, tenant_id, created_at, updated_at FROM users WHERE tenant_id = $1 ORDER BY email
 `
 
 // Enhanced User Queries with Tenant Support
@@ -1376,9 +1095,9 @@ func (q *Queries) GetUsersByTenant(ctx context.Context, tenantID uuid.NullUUID) 
 			&i.FirstName,
 			&i.LastName,
 			&i.IsActive,
+			&i.TenantID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TenantID,
 		); err != nil {
 			return nil, err
 		}
@@ -1438,7 +1157,7 @@ func (q *Queries) UpdateAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error 
 const updateCollection = `-- name: UpdateCollection :one
 UPDATE collections 
 SET display_name = $2, description = $3, icon = $4, updated_at = CURRENT_TIMESTAMP, updated_by = $5
-WHERE id = $1 RETURNING id, name, display_name, description, icon, is_system, created_at, updated_at, tenant_id, created_by, updated_by
+WHERE id = $1 RETURNING id, name, display_name, description, icon, is_system, tenant_id, created_by, updated_by, created_at, updated_at
 `
 
 type UpdateCollectionParams struct {
@@ -1465,11 +1184,11 @@ func (q *Queries) UpdateCollection(ctx context.Context, arg UpdateCollectionPara
 		&i.Description,
 		&i.Icon,
 		&i.IsSystem,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.TenantID,
 		&i.CreatedBy,
 		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -1513,7 +1232,7 @@ func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) 
 const updateField = `-- name: UpdateField :one
 UPDATE fields 
 SET display_name = $2, type = $3, is_primary = $4, is_required = $5, is_unique = $6, default_value = $7, validation_rules = $8, relation_config = $9, sort_order = $10, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 RETURNING id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, relation_config, sort_order, created_at, updated_at, tenant_id
+WHERE id = $1 RETURNING id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, sort_order, relation_config, tenant_id, created_at, updated_at
 `
 
 type UpdateFieldParams struct {
@@ -1554,69 +1273,11 @@ func (q *Queries) UpdateField(ctx context.Context, arg UpdateFieldParams) (Field
 		&i.IsUnique,
 		&i.DefaultValue,
 		&i.ValidationRules,
-		&i.RelationConfig,
 		&i.SortOrder,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.RelationConfig,
 		&i.TenantID,
-	)
-	return i, err
-}
-
-const updateOrder = `-- name: UpdateOrder :one
-UPDATE orders SET status = $2, notes = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id, customer_id, order_date, status, total_amount, notes, created_at, updated_at
-`
-
-type UpdateOrderParams struct {
-	ID     uuid.UUID      `json:"id"`
-	Status sql.NullString `json:"status"`
-	Notes  sql.NullString `json:"notes"`
-}
-
-func (q *Queries) UpdateOrder(ctx context.Context, arg UpdateOrderParams) (Order, error) {
-	row := q.db.QueryRowContext(ctx, updateOrder, arg.ID, arg.Status, arg.Notes)
-	var i Order
-	err := row.Scan(
-		&i.ID,
-		&i.CustomerID,
-		&i.OrderDate,
-		&i.Status,
-		&i.TotalAmount,
-		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateOrderItem = `-- name: UpdateOrderItem :one
-UPDATE order_items SET order_id = $2, product_id = $3, quantity = $4, unit_price = $5 WHERE id = $1 RETURNING id, order_id, product_id, quantity, unit_price, created_at
-`
-
-type UpdateOrderItemParams struct {
-	ID        uuid.UUID     `json:"id"`
-	OrderID   uuid.NullUUID `json:"order_id"`
-	ProductID uuid.NullUUID `json:"product_id"`
-	Quantity  int32         `json:"quantity"`
-	UnitPrice string        `json:"unit_price"`
-}
-
-func (q *Queries) UpdateOrderItem(ctx context.Context, arg UpdateOrderItemParams) (OrderItem, error) {
-	row := q.db.QueryRowContext(ctx, updateOrderItem,
-		arg.ID,
-		arg.OrderID,
-		arg.ProductID,
-		arg.Quantity,
-		arg.UnitPrice,
-	)
-	var i OrderItem
-	err := row.Scan(
-		&i.ID,
-		&i.OrderID,
-		&i.ProductID,
-		&i.Quantity,
-		&i.UnitPrice,
-		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -1624,7 +1285,7 @@ func (q *Queries) UpdateOrderItem(ctx context.Context, arg UpdateOrderItemParams
 const updatePermission = `-- name: UpdatePermission :one
 UPDATE permissions 
 SET field_filter = $2, allowed_fields = $3, updated_at = CURRENT_TIMESTAMP 
-WHERE id = $1 RETURNING id, role_id, table_name, action, field_filter, allowed_fields, created_at, updated_at, tenant_id
+WHERE id = $1 RETURNING id, role_id, table_name, action, field_filter, allowed_fields, tenant_id, created_at, updated_at
 `
 
 type UpdatePermissionParams struct {
@@ -1643,43 +1304,7 @@ func (q *Queries) UpdatePermission(ctx context.Context, arg UpdatePermissionPara
 		&i.Action,
 		&i.FieldFilter,
 		pq.Array(&i.AllowedFields),
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.TenantID,
-	)
-	return i, err
-}
-
-const updateProduct = `-- name: UpdateProduct :one
-UPDATE products SET name = $2, description = $3, price = $4, category = $5, stock_quantity = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id, name, description, price, category, stock_quantity, created_at, updated_at
-`
-
-type UpdateProductParams struct {
-	ID            uuid.UUID      `json:"id"`
-	Name          string         `json:"name"`
-	Description   sql.NullString `json:"description"`
-	Price         string         `json:"price"`
-	Category      sql.NullString `json:"category"`
-	StockQuantity sql.NullInt32  `json:"stock_quantity"`
-}
-
-func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error) {
-	row := q.db.QueryRowContext(ctx, updateProduct,
-		arg.ID,
-		arg.Name,
-		arg.Description,
-		arg.Price,
-		arg.Category,
-		arg.StockQuantity,
-	)
-	var i Product
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.Price,
-		&i.Category,
-		&i.StockQuantity,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1723,7 +1348,7 @@ func (q *Queries) UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Ten
 const updateUser = `-- name: UpdateUser :one
 UPDATE users 
 SET email = $2, first_name = $3, last_name = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP 
-WHERE id = $1 RETURNING id, email, password_hash, first_name, last_name, is_active, created_at, updated_at, tenant_id
+WHERE id = $1 RETURNING id, email, password_hash, first_name, last_name, is_active, tenant_id, created_at, updated_at
 `
 
 type UpdateUserParams struct {
@@ -1750,9 +1375,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.FirstName,
 		&i.LastName,
 		&i.IsActive,
+		&i.TenantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TenantID,
 	)
 	return i, err
 }

@@ -65,12 +65,25 @@ func AuthMiddleware(cfg *config.Config, db *db.DB) gin.HandlerFunc {
 
 		if err == nil && token.Valid {
 			if claims, ok := token.Claims.(*Claims); ok {
-				// Store user information in context
-				c.Set("user_id", claims.UserID)
-				c.Set("email", claims.Email)
-				c.Set("auth_type", "jwt")
-				c.Next()
-				return
+				// Get user roles to check if admin
+				userRoles, err := db.Queries.GetUserRoles(c.Request.Context(), claims.UserID)
+				if err == nil {
+					isAdmin := false
+					for _, role := range userRoles {
+						if role.Name == "admin" {
+							isAdmin = true
+							break
+						}
+					}
+
+					// Store user information in context
+					c.Set("user_id", claims.UserID)
+					c.Set("email", claims.Email)
+					c.Set("auth_type", "jwt")
+					c.Set("is_admin", isAdmin)
+					c.Next()
+					return
+				}
 			}
 		}
 
@@ -89,14 +102,26 @@ func AuthMiddleware(cfg *config.Config, db *db.DB) gin.HandlerFunc {
 			// Update last used timestamp
 			db.Queries.UpdateAPIKeyLastUsed(c.Request.Context(), apiKey.ID)
 
-			// Get user information
+			// Get user information and roles
 			user, err := db.Queries.GetUserByID(c.Request.Context(), apiKey.UserID)
 			if err == nil {
-				c.Set("user_id", user.ID)
-				c.Set("email", user.Email)
-				c.Set("auth_type", "api_key")
-				c.Next()
-				return
+				userRoles, err := db.Queries.GetUserRoles(c.Request.Context(), user.ID)
+				if err == nil {
+					isAdmin := false
+					for _, role := range userRoles {
+						if role.Name == "admin" {
+							isAdmin = true
+							break
+						}
+					}
+
+					c.Set("user_id", user.ID)
+					c.Set("email", user.Email)
+					c.Set("auth_type", "api_key")
+					c.Set("is_admin", isAdmin)
+					c.Next()
+					return
+				}
 			}
 		}
 
@@ -130,6 +155,20 @@ func GetEmail(c *gin.Context) (string, bool) {
 	}
 
 	return "", false
+}
+
+// IsAdmin checks if the current user has admin role
+func IsAdmin(c *gin.Context) bool {
+	isAdmin, exists := c.Get("is_admin")
+	if !exists {
+		return false
+	}
+
+	if admin, ok := isAdmin.(bool); ok {
+		return admin
+	}
+
+	return false
 }
 
 // hashAPIKey creates a SHA-256 hash of the API key for secure storage

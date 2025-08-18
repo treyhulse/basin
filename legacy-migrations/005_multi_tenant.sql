@@ -184,7 +184,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Add tenant-based permissions
+-- Add tenant-based permissions (with conflict handling)
 INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) VALUES
     -- Admin can manage their own tenant's collections
     ((SELECT id FROM roles WHERE name = 'admin'), 'collections', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'default')),
@@ -196,4 +196,5 @@ INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id)
     ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'default')),
     ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'default')),
     ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'default')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'default')); 
+    ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'default'))
+ON CONFLICT (role_id, table_name, action) DO NOTHING; 

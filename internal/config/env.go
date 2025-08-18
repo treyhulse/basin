@@ -46,12 +46,18 @@ func Load() (*Config, error) {
 		ServerMode: getEnv("SERVER_MODE", "debug"),
 	}
 
+	// Debug: Print the actual values being loaded
+	fmt.Printf("DEBUG: DB_HOST=%s, DB_PORT=%d, DB_USER=%s, DB_NAME=%s, DB_SSLMODE=%s\n",
+		config.DBHost, config.DBPort, config.DBUser, config.DBName, config.DBSSLMode)
+
 	return config, nil
 }
 
 func (c *Config) GetDBConnString() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode)
+	fmt.Printf("DEBUG: Connection string: %s\n", connStr)
+	return connStr
 }
 
 func getEnv(key, defaultValue string) string {

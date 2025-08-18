@@ -199,7 +199,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Update the add_standard_fields_to_new_collection function
-DROP FUNCTION IF EXISTS add_standard_fields_to_new_collection();
+DROP FUNCTION IF EXISTS add_standard_fields_to_new_collection() CASCADE;
 
 CREATE OR REPLACE FUNCTION add_standard_fields_to_new_collection()
 RETURNS TRIGGER AS $$
@@ -213,7 +213,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Update the admin_collection_permissions_trigger function
-DROP FUNCTION IF EXISTS admin_collection_permissions_trigger();
+DROP FUNCTION IF EXISTS admin_collection_permissions_trigger() CASCADE;
 
 CREATE OR REPLACE FUNCTION admin_collection_permissions_trigger()
 RETURNS TRIGGER AS $$

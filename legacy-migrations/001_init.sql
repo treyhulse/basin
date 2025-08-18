@@ -93,15 +93,21 @@ INSERT INTO roles (name, description) VALUES
     ('sales', 'Can view products and create orders'),
     ('customer', 'Can view products and own orders');
 
--- Insert default admin user (password: admin123)
+-- Insert default users (password: admin123 for admin, password for manager)
 INSERT INTO users (email, password_hash, first_name, last_name) VALUES
-    ('admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'User');
+    ('admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'User'),
+    ('manager@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Manager', 'User');
 
--- Assign admin role to admin user
+-- Assign roles to users
 INSERT INTO user_roles (user_id, role_id) 
 SELECT u.id, r.id 
 FROM users u, roles r 
 WHERE u.email = 'admin@example.com' AND r.name = 'admin';
+
+INSERT INTO user_roles (user_id, role_id) 
+SELECT u.id, r.id 
+FROM users u, roles r 
+WHERE u.email = 'manager@example.com' AND r.name = 'manager';
 
 -- Insert sample permissions
 INSERT INTO permissions (role_id, table_name, action, allowed_fields) VALUES

@@ -11,6 +11,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+// API keys for programmatic access
 type ApiKey struct {
 	ID         uuid.UUID    `json:"id"`
 	UserID     uuid.UUID    `json:"user_id"`
@@ -23,6 +24,7 @@ type ApiKey struct {
 	UpdatedAt  sql.NullTime `json:"updated_at"`
 }
 
+// Dynamic collections that can be created by users
 type Collection struct {
 	ID          uuid.UUID      `json:"id"`
 	Name        string         `json:"name"`
@@ -30,11 +32,11 @@ type Collection struct {
 	Description sql.NullString `json:"description"`
 	Icon        sql.NullString `json:"icon"`
 	IsSystem    sql.NullBool   `json:"is_system"`
-	CreatedAt   sql.NullTime   `json:"created_at"`
-	UpdatedAt   sql.NullTime   `json:"updated_at"`
 	TenantID    uuid.NullUUID  `json:"tenant_id"`
 	CreatedBy   uuid.NullUUID  `json:"created_by"`
 	UpdatedBy   uuid.NullUUID  `json:"updated_by"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
 }
 
 type Customer struct {
@@ -48,6 +50,7 @@ type Customer struct {
 	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
+// Field definitions for dynamic collections
 type Field struct {
 	ID              uuid.UUID             `json:"id"`
 	CollectionID    uuid.NullUUID         `json:"collection_id"`
@@ -59,33 +62,14 @@ type Field struct {
 	IsUnique        sql.NullBool          `json:"is_unique"`
 	DefaultValue    sql.NullString        `json:"default_value"`
 	ValidationRules pqtype.NullRawMessage `json:"validation_rules"`
-	RelationConfig  pqtype.NullRawMessage `json:"relation_config"`
 	SortOrder       sql.NullInt32         `json:"sort_order"`
+	RelationConfig  pqtype.NullRawMessage `json:"relation_config"`
+	TenantID        uuid.NullUUID         `json:"tenant_id"`
 	CreatedAt       sql.NullTime          `json:"created_at"`
 	UpdatedAt       sql.NullTime          `json:"updated_at"`
-	TenantID        uuid.NullUUID         `json:"tenant_id"`
 }
 
-type Order struct {
-	ID          uuid.UUID      `json:"id"`
-	CustomerID  uuid.NullUUID  `json:"customer_id"`
-	OrderDate   sql.NullTime   `json:"order_date"`
-	Status      sql.NullString `json:"status"`
-	TotalAmount string         `json:"total_amount"`
-	Notes       sql.NullString `json:"notes"`
-	CreatedAt   sql.NullTime   `json:"created_at"`
-	UpdatedAt   sql.NullTime   `json:"updated_at"`
-}
-
-type OrderItem struct {
-	ID        uuid.UUID     `json:"id"`
-	OrderID   uuid.NullUUID `json:"order_id"`
-	ProductID uuid.NullUUID `json:"product_id"`
-	Quantity  int32         `json:"quantity"`
-	UnitPrice string        `json:"unit_price"`
-	CreatedAt sql.NullTime  `json:"created_at"`
-}
-
+// Role-based permissions for table access
 type Permission struct {
 	ID            uuid.UUID             `json:"id"`
 	RoleID        uuid.NullUUID         `json:"role_id"`
@@ -93,32 +77,22 @@ type Permission struct {
 	Action        string                `json:"action"`
 	FieldFilter   pqtype.NullRawMessage `json:"field_filter"`
 	AllowedFields []string              `json:"allowed_fields"`
+	TenantID      uuid.NullUUID         `json:"tenant_id"`
 	CreatedAt     sql.NullTime          `json:"created_at"`
 	UpdatedAt     sql.NullTime          `json:"updated_at"`
-	TenantID      uuid.NullUUID         `json:"tenant_id"`
 }
 
-type Product struct {
-	ID            uuid.UUID      `json:"id"`
-	Name          string         `json:"name"`
-	Description   sql.NullString `json:"description"`
-	Price         string         `json:"price"`
-	Category      sql.NullString `json:"category"`
-	StockQuantity sql.NullInt32  `json:"stock_quantity"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
-	UpdatedAt     sql.NullTime   `json:"updated_at"`
-}
-
+// Role definitions with tenant isolation
 type Role struct {
 	ID          uuid.UUID      `json:"id"`
 	Name        string         `json:"name"`
 	Description sql.NullString `json:"description"`
+	TenantID    uuid.NullUUID  `json:"tenant_id"`
 	CreatedAt   sql.NullTime   `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
-	// Tenant isolation for roles - each tenant has its own set of roles
-	TenantID uuid.UUID `json:"tenant_id"`
 }
 
+// Multi-tenant support - each tenant has isolated data
 type Tenant struct {
 	ID        uuid.UUID             `json:"id"`
 	Name      string                `json:"name"`
@@ -130,6 +104,7 @@ type Tenant struct {
 	UpdatedAt sql.NullTime          `json:"updated_at"`
 }
 
+// User accounts with tenant isolation
 type User struct {
 	ID           uuid.UUID      `json:"id"`
 	Email        string         `json:"email"`
@@ -137,9 +112,9 @@ type User struct {
 	FirstName    sql.NullString `json:"first_name"`
 	LastName     sql.NullString `json:"last_name"`
 	IsActive     sql.NullBool   `json:"is_active"`
+	TenantID     uuid.NullUUID  `json:"tenant_id"`
 	CreatedAt    sql.NullTime   `json:"created_at"`
 	UpdatedAt    sql.NullTime   `json:"updated_at"`
-	TenantID     uuid.NullUUID  `json:"tenant_id"`
 }
 
 type UserRole struct {
