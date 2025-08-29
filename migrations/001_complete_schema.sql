@@ -51,6 +51,16 @@ CREATE TABLE user_roles (
     PRIMARY KEY (user_id, role_id)
 );
 
+-- Create user_tenants junction table for many-to-many user-tenant relationships
+CREATE TABLE user_tenants (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    role_id UUID REFERENCES roles(id),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (user_id, tenant_id)
+);
+
 -- Create permissions table
 CREATE TABLE permissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -134,6 +144,8 @@ CREATE INDEX idx_fields_tenant_id ON fields(tenant_id);
 CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_roles_name_tenant_unique ON roles(name, tenant_id);
+CREATE INDEX idx_user_tenants_user_id ON user_tenants(user_id);
+CREATE INDEX idx_user_tenants_tenant_id ON user_tenants(tenant_id);
 
 -- Create default tenant
 INSERT INTO tenants (id, name, slug, domain) VALUES 
@@ -161,6 +173,17 @@ INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id 
 FROM users u, roles r 
 WHERE u.email = 'manager@example.com' AND r.name = 'manager';
+
+-- Assign users to tenants (many-to-many relationship)
+INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) 
+SELECT u.id, t.id, r.id, true
+FROM users u, tenants t, roles r 
+WHERE u.email = 'admin@example.com' AND t.slug = 'main' AND r.name = 'admin';
+
+INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) 
+SELECT u.id, t.id, r.id, true
+FROM users u, tenants t, roles r 
+WHERE u.email = 'manager@example.com' AND t.slug = 'main' AND r.name = 'manager';
 
 -- Insert sample permissions for admin role
 INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) VALUES

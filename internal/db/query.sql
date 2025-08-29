@@ -158,3 +158,31 @@ WHERE id = $1 RETURNING *;
 
 -- name: DeletePermission :exec
 DELETE FROM permissions WHERE id = $1; 
+
+-- User-Tenant Relationship Queries
+-- name: GetAllTenants :many
+SELECT * FROM tenants ORDER BY created_at;
+
+-- name: GetTenantByID :one
+SELECT * FROM tenants WHERE id = $1;
+
+-- name: AddUserToTenant :exec
+INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) VALUES ($1, $2, $3, true);
+
+-- name: RemoveUserFromTenant :exec
+DELETE FROM user_tenants WHERE user_id = $1 AND tenant_id = $2;
+
+-- name: GetUserTenant :one
+SELECT * FROM user_tenants WHERE user_id = $1 AND tenant_id = $2;
+
+-- name: GetUserDefaultTenant :one
+SELECT t.* FROM tenants t 
+JOIN user_tenants ut ON t.id = ut.tenant_id 
+WHERE ut.user_id = $1 AND ut.is_active = true 
+ORDER BY ut.created_at LIMIT 1;
+
+-- name: GetUserTenants :many
+SELECT t.* FROM tenants t 
+JOIN user_tenants ut ON t.id = ut.tenant_id 
+WHERE ut.user_id = $1 AND ut.is_active = true 
+ORDER BY ut.created_at; 

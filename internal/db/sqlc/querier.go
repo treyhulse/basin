@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AddUserToTenant(ctx context.Context, arg AddUserToTenantParams) error
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	CreateCollection(ctx context.Context, arg CreateCollectionParams) (Collection, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
@@ -29,6 +30,8 @@ type Querier interface {
 	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
 	GetAPIKeyByID(ctx context.Context, id uuid.UUID) (ApiKey, error)
 	GetAPIKeysByUser(ctx context.Context, userID uuid.UUID) ([]ApiKey, error)
+	// User-Tenant Relationship Queries
+	GetAllTenants(ctx context.Context) ([]Tenant, error)
 	GetCollection(ctx context.Context, id uuid.UUID) (Collection, error)
 	// Schema Management Queries
 	GetCollections(ctx context.Context) ([]Collection, error)
@@ -44,15 +47,20 @@ type Querier interface {
 	GetPermissionsByRoleAndTenant(ctx context.Context, arg GetPermissionsByRoleAndTenantParams) ([]Permission, error)
 	GetPermissionsByUserAndTenant(ctx context.Context, arg GetPermissionsByUserAndTenantParams) ([]Permission, error)
 	GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error)
+	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)
 	// Tenant Management Queries
 	GetTenants(ctx context.Context) ([]Tenant, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserDefaultTenant(ctx context.Context, userID uuid.UUID) (Tenant, error)
 	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, error)
+	GetUserTenant(ctx context.Context, arg GetUserTenantParams) (UserTenant, error)
+	GetUserTenants(ctx context.Context, userID uuid.UUID) ([]Tenant, error)
 	GetUserWithTenant(ctx context.Context, id uuid.UUID) (GetUserWithTenantRow, error)
 	// Enhanced User Queries with Tenant Support
 	GetUsersByTenant(ctx context.Context, tenantID uuid.NullUUID) ([]User, error)
+	RemoveUserFromTenant(ctx context.Context, arg RemoveUserFromTenantParams) error
 	UpdateAPIKey(ctx context.Context, arg UpdateAPIKeyParams) (ApiKey, error)
 	UpdateAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error
 	UpdateCollection(ctx context.Context, arg UpdateCollectionParams) (Collection, error)

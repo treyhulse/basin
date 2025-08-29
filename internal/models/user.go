@@ -19,13 +19,37 @@ type User struct {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email      string `json:"email" binding:"required,email"`
+	Password   string `json:"password" binding:"required"`
+	TenantSlug string `json:"tenant_slug,omitempty"` // Optional: specify tenant for login
 }
 
 type LoginResponse struct {
 	Token string `json:"token"`
 	User  User   `json:"user"`
+}
+
+type SignUpRequest struct {
+	Email      string `json:"email" binding:"required,email"`
+	Password   string `json:"password" binding:"required,min=8"`
+	FirstName  string `json:"first_name" binding:"required"`
+	LastName   string `json:"last_name" binding:"required"`
+	TenantSlug string `json:"tenant_slug,omitempty"` // Optional: create/join tenant during signup
+}
+
+type SignUpResponse struct {
+	Message string `json:"message"`
+	User    User   `json:"user"`
+}
+
+type UpdateUserRequest struct {
+	FirstName *string `json:"first_name,omitempty"`
+	LastName  *string `json:"last_name,omitempty"`
+	IsActive  *bool   `json:"is_active,omitempty"`
+}
+
+type DeleteUserResponse struct {
+	Message string `json:"message"`
 }
 
 func HashPassword(password string) (string, error) {
@@ -36,4 +60,4 @@ func HashPassword(password string) (string, error) {
 func CheckPassword(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
-} 
+}

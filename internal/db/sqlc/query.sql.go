@@ -14,6 +14,21 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+const addUserToTenant = `-- name: AddUserToTenant :exec
+INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) VALUES ($1, $2, $3, true)
+`
+
+type AddUserToTenantParams struct {
+	UserID   uuid.UUID     `json:"user_id"`
+	TenantID uuid.UUID     `json:"tenant_id"`
+	RoleID   uuid.NullUUID `json:"role_id"`
+}
+
+func (q *Queries) AddUserToTenant(ctx context.Context, arg AddUserToTenantParams) error {
+	_, err := q.db.ExecContext(ctx, addUserToTenant, arg.UserID, arg.TenantID, arg.RoleID)
+	return err
+}
+
 const createAPIKey = `-- name: CreateAPIKey :one
 INSERT INTO api_keys (user_id, name, key_hash, expires_at) VALUES ($1, $2, $3, $4) RETURNING id, user_id, name, key_hash, is_active, expires_at, last_used_at, created_at, updated_at
 `
@@ -422,6 +437,43 @@ func (q *Queries) GetAPIKeysByUser(ctx context.Context, userID uuid.UUID) ([]Api
 			&i.IsActive,
 			&i.ExpiresAt,
 			&i.LastUsedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTenants = `-- name: GetAllTenants :many
+SELECT id, name, slug, domain, settings, is_active, created_at, updated_at FROM tenants ORDER BY created_at
+`
+
+// User-Tenant Relationship Queries
+func (q *Queries) GetAllTenants(ctx context.Context) ([]Tenant, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTenants)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Tenant{}
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+			&i.Domain,
+			&i.Settings,
+			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -899,6 +951,26 @@ func (q *Queries) GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error) {
 	return i, err
 }
 
+const getTenantByID = `-- name: GetTenantByID :one
+SELECT id, name, slug, domain, settings, is_active, created_at, updated_at FROM tenants WHERE id = $1
+`
+
+func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
+	row := q.db.QueryRowContext(ctx, getTenantByID, id)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.Domain,
+		&i.Settings,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTenantBySlug = `-- name: GetTenantBySlug :one
 SELECT id, name, slug, domain, settings, is_active, created_at, updated_at FROM tenants WHERE slug = $1
 `
@@ -998,6 +1070,29 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	return i, err
 }
 
+const getUserDefaultTenant = `-- name: GetUserDefaultTenant :one
+SELECT t.id, t.name, t.slug, t.domain, t.settings, t.is_active, t.created_at, t.updated_at FROM tenants t 
+JOIN user_tenants ut ON t.id = ut.tenant_id 
+WHERE ut.user_id = $1 AND ut.is_active = true 
+ORDER BY ut.created_at LIMIT 1
+`
+
+func (q *Queries) GetUserDefaultTenant(ctx context.Context, userID uuid.UUID) (Tenant, error) {
+	row := q.db.QueryRowContext(ctx, getUserDefaultTenant, userID)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.Domain,
+		&i.Settings,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUserRoles = `-- name: GetUserRoles :many
 SELECT r.id, r.name, r.description, r.tenant_id, r.created_at, r.updated_at FROM roles r
 JOIN user_roles ur ON r.id = ur.role_id
@@ -1018,6 +1113,67 @@ func (q *Queries) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, e
 			&i.Name,
 			&i.Description,
 			&i.TenantID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserTenant = `-- name: GetUserTenant :one
+SELECT user_id, tenant_id, role_id, is_active, created_at FROM user_tenants WHERE user_id = $1 AND tenant_id = $2
+`
+
+type GetUserTenantParams struct {
+	UserID   uuid.UUID `json:"user_id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetUserTenant(ctx context.Context, arg GetUserTenantParams) (UserTenant, error) {
+	row := q.db.QueryRowContext(ctx, getUserTenant, arg.UserID, arg.TenantID)
+	var i UserTenant
+	err := row.Scan(
+		&i.UserID,
+		&i.TenantID,
+		&i.RoleID,
+		&i.IsActive,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserTenants = `-- name: GetUserTenants :many
+SELECT t.id, t.name, t.slug, t.domain, t.settings, t.is_active, t.created_at, t.updated_at FROM tenants t 
+JOIN user_tenants ut ON t.id = ut.tenant_id 
+WHERE ut.user_id = $1 AND ut.is_active = true 
+ORDER BY ut.created_at
+`
+
+func (q *Queries) GetUserTenants(ctx context.Context, userID uuid.UUID) ([]Tenant, error) {
+	rows, err := q.db.QueryContext(ctx, getUserTenants, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Tenant{}
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+			&i.Domain,
+			&i.Settings,
+			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1110,6 +1266,20 @@ func (q *Queries) GetUsersByTenant(ctx context.Context, tenantID uuid.NullUUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const removeUserFromTenant = `-- name: RemoveUserFromTenant :exec
+DELETE FROM user_tenants WHERE user_id = $1 AND tenant_id = $2
+`
+
+type RemoveUserFromTenantParams struct {
+	UserID   uuid.UUID `json:"user_id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) RemoveUserFromTenant(ctx context.Context, arg RemoveUserFromTenantParams) error {
+	_, err := q.db.ExecContext(ctx, removeUserFromTenant, arg.UserID, arg.TenantID)
+	return err
 }
 
 const updateAPIKey = `-- name: UpdateAPIKey :one

@@ -122,3 +122,11 @@ type UserRole struct {
 	RoleID    uuid.UUID    `json:"role_id"`
 	CreatedAt sql.NullTime `json:"created_at"`
 }
+
+type UserTenant struct {
+	UserID    uuid.UUID     `json:"user_id"`
+	TenantID  uuid.UUID     `json:"tenant_id"`
+	RoleID    uuid.NullUUID `json:"role_id"`
+	IsActive  sql.NullBool  `json:"is_active"`
+	CreatedAt sql.NullTime  `json:"created_at"`
+}

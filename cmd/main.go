@@ -54,6 +54,7 @@ func main() {
 	// Initialize handlers
 	authHandler := api.NewAuthHandler(database, cfg)
 	itemsHandler := api.NewItemsHandler(database)
+	tenantHandler := api.NewTenantHandler(database, cfg)
 
 	// Setup router
 	router := gin.Default()
@@ -89,7 +90,16 @@ func main() {
 	auth := router.Group("/auth")
 	{
 		auth.POST("/login", authHandler.Login)
+		auth.POST("/signup", authHandler.SignUp)
 		auth.GET("/me", middleware.AuthMiddleware(cfg, database), authHandler.Me)
+
+		// User management (protected routes)
+		users := auth.Group("/users")
+		users.Use(middleware.AuthMiddleware(cfg, database))
+		{
+			users.PUT("/:id", authHandler.UpdateUser)
+			users.DELETE("/:id", authHandler.DeleteUser)
+		}
 	}
 
 	// Items routes (protected) - Dynamic table access
@@ -101,6 +111,21 @@ func main() {
 		items.POST("/:table", itemsHandler.CreateItem)
 		items.PUT("/:table/:id", itemsHandler.UpdateItem)
 		items.DELETE("/:table/:id", itemsHandler.DeleteItem)
+	}
+
+	// Tenant routes (protected)
+	tenant := router.Group("/tenants")
+	tenant.Use(middleware.AuthMiddleware(cfg, database))
+	{
+		tenant.POST("/", tenantHandler.CreateTenant)
+		tenant.GET("/", tenantHandler.GetTenants)
+		tenant.GET("/:id", tenantHandler.GetTenant)
+		tenant.PUT("/:id", tenantHandler.UpdateTenant)
+		tenant.DELETE("/:id", tenantHandler.DeleteTenant)
+
+		// User-tenant management
+		tenant.POST("/:id/users", tenantHandler.AddUserToTenant)
+		tenant.DELETE("/:id/users/:user_id", tenantHandler.RemoveUserFromTenant)
 	}
 
 	// API documentation
