@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -8,8 +10,16 @@ import (
 // Admin users automatically bypass all permission checks
 func PermissionMiddleware(tableName, action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Get auth provider to check admin status
+		auth, exists := GetAuthProvider(c)
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			c.Abort()
+			return
+		}
+
 		// Admin users bypass all permission checks
-		if IsAdmin(c) {
+		if auth.IsAdmin {
 			c.Next()
 			return
 		}
@@ -19,14 +29,13 @@ func PermissionMiddleware(tableName, action string) gin.HandlerFunc {
 		// For now, we'll just allow access (you can implement the actual logic later)
 
 		// Example permission check (commented out for now):
-		// userID, exists := GetUserID(c)
-		// if !exists {
-		//     c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		//     c.Abort()
-		//     return
+		// hasPermission := false
+		// for _, permission := range auth.Permissions {
+		//     if permission == fmt.Sprintf("%s:%s", tableName, action) {
+		//         hasPermission = true
+		//         break
+		//     }
 		// }
-		//
-		// hasPermission := checkUserPermission(c, userID, tableName, action)
 		// if !hasPermission {
 		//     c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
 		//     c.Abort()
@@ -40,8 +49,16 @@ func PermissionMiddleware(tableName, action string) gin.HandlerFunc {
 // CollectionPermissionMiddleware checks permissions for collection operations
 func CollectionPermissionMiddleware(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Get auth provider to check admin status
+		auth, exists := GetAuthProvider(c)
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			c.Abort()
+			return
+		}
+
 		// Admin users bypass all permission checks
-		if IsAdmin(c) {
+		if auth.IsAdmin {
 			c.Next()
 			return
 		}
@@ -56,8 +73,16 @@ func CollectionPermissionMiddleware(action string) gin.HandlerFunc {
 // DataPermissionMiddleware checks permissions for data operations within collections
 func DataPermissionMiddleware(collectionName, action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Get auth provider to check admin status
+		auth, exists := GetAuthProvider(c)
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			c.Abort()
+			return
+		}
+
 		// Admin users bypass all permission checks
-		if IsAdmin(c) {
+		if auth.IsAdmin {
 			c.Next()
 			return
 		}

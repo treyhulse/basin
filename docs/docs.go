@@ -15,6 +15,35 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/auth/context": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get Auth Context",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "consumes": [
@@ -141,6 +170,97 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/switch-tenant": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Switch Tenant",
+                "parameters": [
+                    {
+                        "description": "Switch tenant payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.SwitchTenantRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SwitchTenantResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/tenants": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get User Tenants",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Tenant"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -286,7 +406,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-api-keys"
+                    "api-keys"
                 ],
                 "summary": "List API keys",
                 "parameters": [
@@ -383,7 +503,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-api-keys"
+                    "api-keys"
                 ],
                 "summary": "Create API key",
                 "parameters": [
@@ -441,7 +561,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-api-keys"
+                    "api-keys"
                 ],
                 "summary": "Get API key",
                 "parameters": [
@@ -503,7 +623,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-api-keys"
+                    "api-keys"
                 ],
                 "summary": "Update API key",
                 "parameters": [
@@ -572,7 +692,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-api-keys"
+                    "api-keys"
                 ],
                 "summary": "Delete API key",
                 "parameters": [
@@ -633,7 +753,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-collections"
+                    "collections"
                 ],
                 "summary": "List collections",
                 "parameters": [
@@ -736,7 +856,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-collections"
+                    "collections"
                 ],
                 "summary": "Create collection",
                 "parameters": [
@@ -794,7 +914,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-collections"
+                    "collections"
                 ],
                 "summary": "Get collection",
                 "parameters": [
@@ -856,7 +976,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-collections"
+                    "collections"
                 ],
                 "summary": "Update collection",
                 "parameters": [
@@ -925,7 +1045,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-collections"
+                    "collections"
                 ],
                 "summary": "Delete collection",
                 "parameters": [
@@ -986,7 +1106,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-fields"
+                    "fields"
                 ],
                 "summary": "List fields",
                 "parameters": [
@@ -1095,7 +1215,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-fields"
+                    "fields"
                 ],
                 "summary": "Create field",
                 "parameters": [
@@ -1153,7 +1273,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-fields"
+                    "fields"
                 ],
                 "summary": "Get field",
                 "parameters": [
@@ -1215,7 +1335,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-fields"
+                    "fields"
                 ],
                 "summary": "Update field",
                 "parameters": [
@@ -1284,7 +1404,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-fields"
+                    "fields"
                 ],
                 "summary": "Delete field",
                 "parameters": [
@@ -1345,7 +1465,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-permissions"
+                    "permissions"
                 ],
                 "summary": "List permissions",
                 "parameters": [
@@ -1448,7 +1568,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-permissions"
+                    "permissions"
                 ],
                 "summary": "Create permission",
                 "parameters": [
@@ -1506,7 +1626,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-permissions"
+                    "permissions"
                 ],
                 "summary": "Get permission",
                 "parameters": [
@@ -1568,7 +1688,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-permissions"
+                    "permissions"
                 ],
                 "summary": "Update permission",
                 "parameters": [
@@ -1637,7 +1757,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-permissions"
+                    "permissions"
                 ],
                 "summary": "Delete permission",
                 "parameters": [
@@ -1698,7 +1818,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-roles"
+                    "roles"
                 ],
                 "summary": "List roles",
                 "parameters": [
@@ -1789,7 +1909,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-roles"
+                    "roles"
                 ],
                 "summary": "Create role",
                 "parameters": [
@@ -1847,7 +1967,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-roles"
+                    "roles"
                 ],
                 "summary": "Get role",
                 "parameters": [
@@ -1909,7 +2029,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-roles"
+                    "roles"
                 ],
                 "summary": "Update role",
                 "parameters": [
@@ -1978,7 +2098,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-roles"
+                    "roles"
                 ],
                 "summary": "Delete role",
                 "parameters": [
@@ -2039,7 +2159,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-users"
+                    "users"
                 ],
                 "summary": "List users",
                 "parameters": [
@@ -2136,7 +2256,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-users"
+                    "users"
                 ],
                 "summary": "Create user",
                 "parameters": [
@@ -2194,7 +2314,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-users"
+                    "users"
                 ],
                 "summary": "Get user",
                 "parameters": [
@@ -2256,7 +2376,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-users"
+                    "users"
                 ],
                 "summary": "Update user",
                 "parameters": [
@@ -2325,7 +2445,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "core-users"
+                    "users"
                 ],
                 "summary": "Delete user",
                 "parameters": [
@@ -3435,6 +3555,34 @@ const docTemplate = `{
                 },
                 "user": {
                     "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "models.SwitchTenantRequest": {
+            "type": "object",
+            "required": [
+                "tenant_id"
+            ],
+            "properties": {
+                "tenant_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SwitchTenantResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "tenant_slug": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
                 }
             }
         },

@@ -180,6 +180,24 @@ definitions:
       user:
         $ref: '#/definitions/models.User'
     type: object
+  models.SwitchTenantRequest:
+    properties:
+      tenant_id:
+        type: string
+    required:
+    - tenant_id
+    type: object
+  models.SwitchTenantResponse:
+    properties:
+      message:
+        type: string
+      tenant_id:
+        type: string
+      tenant_slug:
+        type: string
+      token:
+        type: string
+    type: object
   models.Tenant:
     properties:
       created_at:
@@ -271,6 +289,25 @@ info:
   title: Basin API
   version: 1.0.0
 paths:
+  /auth/context:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get Auth Context
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:
@@ -356,6 +393,65 @@ paths:
               type: string
             type: object
       summary: Sign Up
+      tags:
+      - auth
+  /auth/switch-tenant:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Switch tenant payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.SwitchTenantRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SwitchTenantResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Switch Tenant
+      tags:
+      - auth
+  /auth/tenants:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Tenant'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get User Tenants
       tags:
       - auth
   /auth/users/{id}:
@@ -786,7 +882,7 @@ paths:
       - ApiKeyAuth: []
       summary: List API keys
       tags:
-      - core-api-keys
+      - api-keys
     post:
       consumes:
       - application/json
@@ -824,7 +920,7 @@ paths:
       - ApiKeyAuth: []
       summary: Create API key
       tags:
-      - core-api-keys
+      - api-keys
   /items/api-keys/{id}:
     delete:
       description: Delete an API key from the system. Requires authentication and
@@ -863,7 +959,7 @@ paths:
       - ApiKeyAuth: []
       summary: Delete API key
       tags:
-      - core-api-keys
+      - api-keys
     get:
       description: Retrieve a specific API key by ID. Requires authentication and
         API key management permissions.
@@ -901,7 +997,7 @@ paths:
       - ApiKeyAuth: []
       summary: Get API key
       tags:
-      - core-api-keys
+      - api-keys
     put:
       consumes:
       - application/json
@@ -948,7 +1044,7 @@ paths:
       - ApiKeyAuth: []
       summary: Update API key
       tags:
-      - core-api-keys
+      - api-keys
   /items/collections:
     get:
       description: Retrieve a list of collections in the system. Requires authentication
@@ -1014,7 +1110,7 @@ paths:
       - ApiKeyAuth: []
       summary: List collections
       tags:
-      - core-collections
+      - collections
     post:
       consumes:
       - application/json
@@ -1052,7 +1148,7 @@ paths:
       - ApiKeyAuth: []
       summary: Create collection
       tags:
-      - core-collections
+      - collections
   /items/collections/{id}:
     delete:
       description: Delete a collection from the system. Requires authentication and
@@ -1091,7 +1187,7 @@ paths:
       - ApiKeyAuth: []
       summary: Delete collection
       tags:
-      - core-collections
+      - collections
     get:
       description: Retrieve a specific collection by ID. Requires authentication and
         collection management permissions.
@@ -1129,7 +1225,7 @@ paths:
       - ApiKeyAuth: []
       summary: Get collection
       tags:
-      - core-collections
+      - collections
     put:
       consumes:
       - application/json
@@ -1176,7 +1272,7 @@ paths:
       - ApiKeyAuth: []
       summary: Update collection
       tags:
-      - core-collections
+      - collections
   /items/fields:
     get:
       description: Retrieve a list of fields in the system. Requires authentication
@@ -1247,7 +1343,7 @@ paths:
       - ApiKeyAuth: []
       summary: List fields
       tags:
-      - core-fields
+      - fields
     post:
       consumes:
       - application/json
@@ -1286,7 +1382,7 @@ paths:
       - ApiKeyAuth: []
       summary: Create field
       tags:
-      - core-fields
+      - fields
   /items/fields/{id}:
     delete:
       description: Delete a field from the system. Requires authentication and field
@@ -1325,7 +1421,7 @@ paths:
       - ApiKeyAuth: []
       summary: Delete field
       tags:
-      - core-fields
+      - fields
     get:
       description: Retrieve a specific field by ID. Requires authentication and field
         management permissions.
@@ -1363,7 +1459,7 @@ paths:
       - ApiKeyAuth: []
       summary: Get field
       tags:
-      - core-fields
+      - fields
     put:
       consumes:
       - application/json
@@ -1410,7 +1506,7 @@ paths:
       - ApiKeyAuth: []
       summary: Update field
       tags:
-      - core-fields
+      - fields
   /items/permissions:
     get:
       description: Retrieve a list of permissions in the system. Requires authentication
@@ -1476,7 +1572,7 @@ paths:
       - ApiKeyAuth: []
       summary: List permissions
       tags:
-      - core-permissions
+      - permissions
     post:
       consumes:
       - application/json
@@ -1514,7 +1610,7 @@ paths:
       - ApiKeyAuth: []
       summary: Create permission
       tags:
-      - core-permissions
+      - permissions
   /items/permissions/{id}:
     delete:
       description: Delete a permission from the system. Requires authentication and
@@ -1553,7 +1649,7 @@ paths:
       - ApiKeyAuth: []
       summary: Delete permission
       tags:
-      - core-permissions
+      - permissions
     get:
       description: Retrieve a specific permission by ID. Requires authentication and
         permission management permissions.
@@ -1591,7 +1687,7 @@ paths:
       - ApiKeyAuth: []
       summary: Get permission
       tags:
-      - core-permissions
+      - permissions
     put:
       consumes:
       - application/json
@@ -1638,7 +1734,7 @@ paths:
       - ApiKeyAuth: []
       summary: Update permission
       tags:
-      - core-permissions
+      - permissions
   /items/roles:
     get:
       description: Retrieve a list of roles in the system. Requires authentication
@@ -1696,7 +1792,7 @@ paths:
       - ApiKeyAuth: []
       summary: List roles
       tags:
-      - core-roles
+      - roles
     post:
       consumes:
       - application/json
@@ -1734,7 +1830,7 @@ paths:
       - ApiKeyAuth: []
       summary: Create role
       tags:
-      - core-roles
+      - roles
   /items/roles/{id}:
     delete:
       description: Delete a role from the system. Requires authentication and role
@@ -1773,7 +1869,7 @@ paths:
       - ApiKeyAuth: []
       summary: Delete role
       tags:
-      - core-roles
+      - roles
     get:
       description: Retrieve a specific role by ID. Requires authentication and role
         management permissions.
@@ -1811,7 +1907,7 @@ paths:
       - ApiKeyAuth: []
       summary: Get role
       tags:
-      - core-roles
+      - roles
     put:
       consumes:
       - application/json
@@ -1858,7 +1954,7 @@ paths:
       - ApiKeyAuth: []
       summary: Update role
       tags:
-      - core-roles
+      - roles
   /items/users:
     get:
       description: Retrieve a list of users in the system. Requires authentication
@@ -1920,7 +2016,7 @@ paths:
       - ApiKeyAuth: []
       summary: List users
       tags:
-      - core-users
+      - users
     post:
       consumes:
       - application/json
@@ -1958,7 +2054,7 @@ paths:
       - ApiKeyAuth: []
       summary: Create user
       tags:
-      - core-users
+      - users
   /items/users/{id}:
     delete:
       description: Delete a user from the system. Requires authentication and user
@@ -1997,7 +2093,7 @@ paths:
       - ApiKeyAuth: []
       summary: Delete user
       tags:
-      - core-users
+      - users
     get:
       description: Retrieve a specific user by ID. Requires authentication and user
         management permissions.
@@ -2035,7 +2131,7 @@ paths:
       - ApiKeyAuth: []
       summary: Get user
       tags:
-      - core-users
+      - users
     put:
       consumes:
       - application/json
@@ -2082,7 +2178,7 @@ paths:
       - ApiKeyAuth: []
       summary: Update user
       tags:
-      - core-users
+      - users
   /tenants:
     get:
       produces:

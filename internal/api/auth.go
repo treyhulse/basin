@@ -16,14 +16,16 @@ import (
 )
 
 type AuthHandler struct {
-	db  *db.DB
-	cfg *config.Config
+	db           *db.DB
+	cfg          *config.Config
+	authProvider *AuthProviderService
 }
 
 func NewAuthHandler(db *db.DB, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{
-		db:  db,
-		cfg: cfg,
+		db:           db,
+		cfg:          cfg,
+		authProvider: NewAuthProviderService(db, cfg),
 	}
 }
 
@@ -87,15 +89,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 
 		// Generate tenant-aware token
-		token, err = middleware.GenerateTokenWithTenant(models.User{
-			ID:        user.ID,
-			Email:     user.Email,
-			FirstName: user.FirstName.String,
-			LastName:  user.LastName.String,
-			IsActive:  user.IsActive.Bool,
-			CreatedAt: user.CreatedAt.Time,
-			UpdatedAt: user.UpdatedAt.Time,
-		}, tenant.ID, tenant.Slug, h.cfg)
+		token, err = middleware.GenerateTokenWithTenant(user, tenant, h.cfg)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 			return
@@ -108,15 +102,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		defaultTenant, err := h.db.Queries.GetUserDefaultTenant(c.Request.Context(), user.ID)
 		if err == nil {
 			// User has a default tenant, use it
-			token, err = middleware.GenerateTokenWithTenant(models.User{
-				ID:        user.ID,
-				Email:     user.Email,
-				FirstName: user.FirstName.String,
-				LastName:  user.LastName.String,
-				IsActive:  user.IsActive.Bool,
-				CreatedAt: user.CreatedAt.Time,
-				UpdatedAt: user.UpdatedAt.Time,
-			}, defaultTenant.ID, defaultTenant.Slug, h.cfg)
+			token, err = middleware.GenerateTokenWithTenant(user, defaultTenant, h.cfg)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 				return
@@ -125,15 +111,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			tenantSlug = defaultTenant.Slug
 		} else {
 			// No default tenant, generate regular token
-			token, err = middleware.GenerateToken(models.User{
-				ID:        user.ID,
-				Email:     user.Email,
-				FirstName: user.FirstName.String,
-				LastName:  user.LastName.String,
-				IsActive:  user.IsActive.Bool,
-				CreatedAt: user.CreatedAt.Time,
-				UpdatedAt: user.UpdatedAt.Time,
-			}, h.cfg)
+			token, err = middleware.GenerateToken(user, h.cfg)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 				return
@@ -156,6 +134,105 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		TenantID:   tenantID,
 		TenantSlug: tenantSlug,
 	})
+}
+
+// SwitchTenant handles POST /auth/switch-tenant requests
+// @Summary      Switch Tenant
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body   models.SwitchTenantRequest true "Switch tenant payload"
+// @Success      200   {object} models.SwitchTenantResponse
+// @Failure      400   {object} map[string]string
+// @Failure      401   {object} map[string]string
+// @Failure      403   {object} map[string]string
+// @Router       /auth/switch-tenant [post]
+func (h *AuthHandler) SwitchTenant(c *gin.Context) {
+	var switchReq models.SwitchTenantRequest
+	if err := c.ShouldBindJSON(&switchReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	// Switch to the new tenant
+	authProvider, err := h.authProvider.SwitchTenant(c, switchReq.TenantID)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Generate new token with the new tenant context
+	user, err := h.db.Queries.GetUserByID(c.Request.Context(), authProvider.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		return
+	}
+
+	tenant, err := h.db.Queries.GetTenantByID(c.Request.Context(), switchReq.TenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tenant"})
+		return
+	}
+
+	token, err := middleware.GenerateTokenWithTenant(user, tenant, h.cfg)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.SwitchTenantResponse{
+		Token:      token,
+		TenantID:   tenant.ID,
+		TenantSlug: tenant.Slug,
+		Message:    "Successfully switched to new tenant",
+	})
+}
+
+// GetAuthContext handles GET /auth/context requests
+// @Summary      Get Auth Context
+// @Tags         auth
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Router       /auth/context [get]
+func (h *AuthHandler) GetAuthContext(c *gin.Context) {
+	authContext, err := h.authProvider.GetAuthContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, authContext)
+}
+
+// GetUserTenants handles GET /auth/tenants requests
+// @Summary      Get User Tenants
+// @Tags         auth
+// @Produce      json
+// @Success      200 {array} models.Tenant
+// @Failure      401 {object} map[string]string
+// @Router       /auth/tenants [get]
+func (h *AuthHandler) GetUserTenants(c *gin.Context) {
+	tenants, err := h.authProvider.GetUserTenants(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	var response []models.Tenant
+	for _, tenant := range tenants {
+		response = append(response, models.Tenant{
+			ID:        tenant.ID,
+			Name:      tenant.Name,
+			Slug:      tenant.Slug,
+			Domain:    tenant.Domain.String,
+			IsActive:  tenant.IsActive.Bool,
+			CreatedAt: tenant.CreatedAt.Time,
+			UpdatedAt: tenant.UpdatedAt.Time,
+		})
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // Me handles GET /auth/me requests to get current user info

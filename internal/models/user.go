@@ -54,6 +54,17 @@ type DeleteUserResponse struct {
 	Message string `json:"message"`
 }
 
+type SwitchTenantRequest struct {
+	TenantID uuid.UUID `json:"tenant_id" binding:"required"`
+}
+
+type SwitchTenantResponse struct {
+	Token      string    `json:"token"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+	TenantSlug string    `json:"tenant_slug"`
+	Message    string    `json:"message"`
+}
+
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err

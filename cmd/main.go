@@ -93,6 +93,15 @@ func main() {
 		auth.POST("/signup", authHandler.SignUp)
 		auth.GET("/me", middleware.AuthMiddleware(cfg, database), authHandler.Me)
 
+		// Protected auth routes (require authentication)
+		protected := auth.Group("/")
+		protected.Use(middleware.AuthMiddleware(cfg, database))
+		{
+			protected.POST("/switch-tenant", authHandler.SwitchTenant)
+			protected.GET("/context", authHandler.GetAuthContext)
+			protected.GET("/tenants", authHandler.GetUserTenants)
+		}
+
 		// User management (protected routes)
 		users := auth.Group("/users")
 		users.Use(middleware.AuthMiddleware(cfg, database))

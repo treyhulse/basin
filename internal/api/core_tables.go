@@ -17,7 +17,7 @@ import (
 
 // GetUsers handles GET /items/users requests
 // @Summary      List users
-// @Tags         core-users
+// @Tags         users
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a list of users in the system. Requires authentication and user management permissions.
@@ -42,7 +42,7 @@ func GetUsers(c *gin.Context) {
 
 // GetUser handles GET /items/users/:id requests
 // @Summary      Get user
-// @Tags         core-users
+// @Tags         users
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a specific user by ID. Requires authentication and user management permissions.
@@ -60,7 +60,7 @@ func GetUser(c *gin.Context) {
 
 // CreateUser handles POST /items/users requests
 // @Summary      Create user
-// @Tags         core-users
+// @Tags         users
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Create a new user in the system. Requires authentication and user creation permissions.
@@ -78,7 +78,7 @@ func CreateUser(c *gin.Context) {
 
 // UpdateUser handles PUT /items/users/:id requests
 // @Summary      Update user
-// @Tags         core-users
+// @Tags         users
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Update an existing user. Requires authentication and user update permissions.
@@ -98,7 +98,7 @@ func UpdateUser(c *gin.Context) {
 
 // DeleteUser handles DELETE /items/users/:id requests
 // @Summary      Delete user
-// @Tags         core-users
+// @Tags         users
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Delete a user from the system. Requires authentication and user deletion permissions.
@@ -120,7 +120,7 @@ func DeleteUser(c *gin.Context) {
 
 // GetRoles handles GET /items/roles requests
 // @Summary      List roles
-// @Tags         core-roles
+// @Tags         roles
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a list of roles in the system. Requires authentication and role management permissions.
@@ -143,7 +143,7 @@ func GetRoles(c *gin.Context) {
 
 // GetRole handles GET /items/roles/:id requests
 // @Summary      Get role
-// @Tags         core-roles
+// @Tags         roles
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a specific role by ID. Requires authentication and role management permissions.
@@ -161,7 +161,7 @@ func GetRole(c *gin.Context) {
 
 // CreateRole handles POST /items/roles requests
 // @Summary      Create role
-// @Tags         core-roles
+// @Tags         roles
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Create a new role in the system. Requires authentication and role creation permissions.
@@ -179,7 +179,7 @@ func CreateRole(c *gin.Context) {
 
 // UpdateRole handles PUT /items/roles/:id requests
 // @Summary      Update role
-// @Tags         core-roles
+// @Tags         roles
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Update an existing role. Requires authentication and role update permissions.
@@ -199,7 +199,7 @@ func UpdateRole(c *gin.Context) {
 
 // DeleteRole handles DELETE /items/roles/:id requests
 // @Summary      Delete role
-// @Tags         core-roles
+// @Tags         roles
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Delete a role from the system. Requires authentication and role deletion permissions.
@@ -221,7 +221,7 @@ func DeleteRole(c *gin.Context) {
 
 // GetPermissions handles GET /items/permissions requests
 // @Summary      List permissions
-// @Tags         core-permissions
+// @Tags         permissions
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a list of permissions in the system. Requires authentication and permission management permissions.
@@ -246,7 +246,7 @@ func GetPermissions(c *gin.Context) {
 
 // GetPermission handles GET /items/permissions/:id requests
 // @Summary      Get permission
-// @Tags         core-permissions
+// @Tags         permissions
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a specific permission by ID. Requires authentication and permission management permissions.
@@ -264,7 +264,7 @@ func GetPermission(c *gin.Context) {
 
 // CreatePermission handles POST /items/permissions requests
 // @Summary      Create permission
-// @Tags         core-permissions
+// @Tags         permissions
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Create a new permission in the system. Requires authentication and permission creation permissions.
@@ -282,7 +282,7 @@ func CreatePermission(c *gin.Context) {
 
 // UpdatePermission handles PUT /items/permissions/:id requests
 // @Summary      Update permission
-// @Tags         core-permissions
+// @Tags         permissions
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Update an existing permission. Requires authentication and permission update permissions.
@@ -302,7 +302,7 @@ func UpdatePermission(c *gin.Context) {
 
 // DeletePermission handles DELETE /items/permissions/:id requests
 // @Summary      Delete permission
-// @Tags         core-permissions
+// @Tags         permissions
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Delete a permission from the system. Requires authentication and permission deletion permissions.
@@ -324,7 +324,7 @@ func DeletePermission(c *gin.Context) {
 
 // GetCollections handles GET /items/collections requests
 // @Summary      List collections
-// @Tags         core-collections
+// @Tags         collections
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a list of collections in the system. Requires authentication and collection management permissions.
@@ -349,7 +349,7 @@ func GetCollections(c *gin.Context) {
 
 // GetCollection handles GET /items/collections/:id requests
 // @Summary      Get collection
-// @Tags         core-collections
+// @Tags         collections
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a specific collection by ID. Requires authentication and collection management permissions.
@@ -367,7 +367,7 @@ func GetCollection(c *gin.Context) {
 
 // CreateCollection handles POST /items/collections requests
 // @Summary      Create collection
-// @Tags         core-collections
+// @Tags         collections
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Create a new collection in the system. Requires authentication and collection creation permissions.
@@ -385,7 +385,7 @@ func CreateCollection(c *gin.Context) {
 
 // UpdateCollection handles PUT /items/collections/:id requests
 // @Summary      Update collection
-// @Tags         core-collections
+// @Tags         collections
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Update an existing collection. Requires authentication and collection update permissions.
@@ -405,7 +405,7 @@ func UpdateCollection(c *gin.Context) {
 
 // DeleteCollection handles DELETE /items/collections/:id requests
 // @Summary      Delete collection
-// @Tags         core-collections
+// @Tags         collections
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Delete a collection from the system. Requires authentication and collection deletion permissions.
@@ -427,7 +427,7 @@ func DeleteCollection(c *gin.Context) {
 
 // GetFields handles GET /items/fields requests
 // @Summary      List fields
-// @Tags         core-fields
+// @Tags         fields
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a list of fields in the system. Requires authentication and field management permissions.
@@ -453,7 +453,7 @@ func GetFields(c *gin.Context) {
 
 // GetField handles GET /items/fields/:id requests
 // @Summary      Get field
-// @Tags         core-fields
+// @Tags         fields
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a specific field by ID. Requires authentication and field management permissions.
@@ -471,7 +471,7 @@ func GetField(c *gin.Context) {
 
 // CreateField handles POST /items/fields requests
 // @Summary      Create field
-// @Tags         core-fields
+// @Tags         fields
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Create a new field in the system. Requires authentication and field creation permissions.
@@ -489,7 +489,7 @@ func CreateField(c *gin.Context) {
 
 // UpdateField handles PUT /items/fields/:id requests
 // @Summary      Update field
-// @Tags         core-fields
+// @Tags         fields
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Update an existing field. Requires authentication and field update permissions.
@@ -509,7 +509,7 @@ func UpdateField(c *gin.Context) {
 
 // DeleteField handles DELETE /items/fields/:id requests
 // @Summary      Delete field
-// @Tags         core-fields
+// @Tags         fields
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Delete a field from the system. Requires authentication and field deletion permissions.
@@ -531,7 +531,7 @@ func DeleteField(c *gin.Context) {
 
 // GetAPIKeys handles GET /items/api-keys requests
 // @Summary      List API keys
-// @Tags         core-api-keys
+// @Tags         api-keys
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a list of API keys in the system. Requires authentication and API key management permissions.
@@ -555,7 +555,7 @@ func GetAPIKeys(c *gin.Context) {
 
 // GetAPIKey handles GET /items/api-keys/:id requests
 // @Summary      Get API key
-// @Tags         core-api-keys
+// @Tags         api-keys
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Retrieve a specific API key by ID. Requires authentication and API key management permissions.
@@ -573,7 +573,7 @@ func GetAPIKey(c *gin.Context) {
 
 // CreateAPIKey handles POST /items/api-keys requests
 // @Summary      Create API key
-// @Tags         core-api-keys
+// @Tags         api-keys
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Create a new API key in the system. Requires authentication and API key creation permissions.
@@ -591,7 +591,7 @@ func CreateAPIKey(c *gin.Context) {
 
 // UpdateAPIKey handles PUT /items/api-keys/:id requests
 // @Summary      Update API key
-// @Tags         core-api-keys
+// @Tags         api-keys
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Update an existing API key. Requires authentication and API key update permissions.
@@ -611,7 +611,7 @@ func UpdateAPIKey(c *gin.Context) {
 
 // DeleteAPIKey handles DELETE /items/api-keys/:id requests
 // @Summary      Delete API key
-// @Tags         core-api-keys
+// @Tags         api-keys
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Description  Delete an API key from the system. Requires authentication and API key deletion permissions.
