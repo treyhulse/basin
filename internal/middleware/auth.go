@@ -17,8 +17,10 @@ import (
 )
 
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Email  string    `json:"email"`
+	UserID     uuid.UUID `json:"user_id"`
+	Email      string    `json:"email"`
+	TenantID   uuid.UUID `json:"tenant_id,omitempty"`
+	TenantSlug string    `json:"tenant_slug,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -28,6 +30,26 @@ func GenerateToken(user models.User, cfg *config.Config) (string, error) {
 	claims := &Claims{
 		UserID: user.ID,
 		Email:  user.Email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(cfg.JWTSecret))
+}
+
+// GenerateTokenWithTenant creates a JWT token that includes tenant context
+func GenerateTokenWithTenant(user models.User, tenantID uuid.UUID, tenantSlug string, cfg *config.Config) (string, error) {
+	expirationTime := time.Now().Add(cfg.JWTExpiry)
+
+	claims := &Claims{
+		UserID:     user.ID,
+		Email:      user.Email,
+		TenantID:   tenantID,
+		TenantSlug: tenantSlug,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -81,6 +103,13 @@ func AuthMiddleware(cfg *config.Config, db *db.DB) gin.HandlerFunc {
 					c.Set("email", claims.Email)
 					c.Set("auth_type", "jwt")
 					c.Set("is_admin", isAdmin)
+
+					// Store tenant information if present
+					if claims.TenantID != uuid.Nil {
+						c.Set("tenant_id", claims.TenantID)
+						c.Set("tenant_slug", claims.TenantSlug)
+					}
+
 					c.Next()
 					return
 				}
@@ -152,6 +181,34 @@ func GetEmail(c *gin.Context) (string, bool) {
 
 	if e, ok := email.(string); ok {
 		return e, true
+	}
+
+	return "", false
+}
+
+// GetTenantID retrieves the tenant ID from the context
+func GetTenantID(c *gin.Context) (uuid.UUID, bool) {
+	tenantID, exists := c.Get("tenant_id")
+	if !exists {
+		return uuid.Nil, false
+	}
+
+	if id, ok := tenantID.(uuid.UUID); ok {
+		return id, true
+	}
+
+	return uuid.Nil, false
+}
+
+// GetTenantSlug retrieves the tenant slug from the context
+func GetTenantSlug(c *gin.Context) (string, bool) {
+	tenantSlug, exists := c.Get("tenant_slug")
+	if !exists {
+		return "", false
+	}
+
+	if slug, ok := tenantSlug.(string); ok {
+		return slug, true
 	}
 
 	return "", false

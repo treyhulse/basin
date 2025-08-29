@@ -126,6 +126,7 @@ func main() {
 		// User-tenant management
 		tenant.POST("/:id/users", tenantHandler.AddUserToTenant)
 		tenant.DELETE("/:id/users/:user_id", tenantHandler.RemoveUserFromTenant)
+		tenant.POST("/:id/join", tenantHandler.JoinTenant) // New route for users to join tenants
 	}
 
 	// API documentation

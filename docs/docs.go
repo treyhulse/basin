@@ -3021,6 +3021,55 @@ const docTemplate = `{
                 }
             }
         },
+        "/tenants/{id}/join": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tenants"
+                ],
+                "summary": "Join Tenant (Current User)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tenant ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.UserTenantResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/tenants/{id}/users": {
             "post": {
                 "consumes": [
@@ -3336,6 +3385,12 @@ const docTemplate = `{
         "models.LoginResponse": {
             "type": "object",
             "properties": {
+                "tenant_id": {
+                    "type": "string"
+                },
+                "tenant_slug": {
+                    "type": "string"
+                },
                 "token": {
                     "type": "string"
                 },

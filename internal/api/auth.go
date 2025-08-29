@@ -63,19 +63,82 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token
-	token, err := middleware.GenerateToken(models.User{
-		ID:        user.ID,
-		Email:     user.Email,
-		FirstName: user.FirstName.String,
-		LastName:  user.LastName.String,
-		IsActive:  user.IsActive.Bool,
-		CreatedAt: user.CreatedAt.Time,
-		UpdatedAt: user.UpdatedAt.Time,
-	}, h.cfg)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
+	// Determine tenant context
+	var tenantID uuid.UUID
+	var tenantSlug string
+	var token string
+
+	if loginReq.TenantSlug != "" {
+		// User specified a tenant, verify they have access
+		tenant, err := h.db.Queries.GetTenantBySlug(c.Request.Context(), loginReq.TenantSlug)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid tenant or no access"})
+			return
+		}
+
+		// Check if user has access to this tenant
+		_, err = h.db.Queries.GetUserTenant(c.Request.Context(), sqlc.GetUserTenantParams{
+			UserID:   user.ID,
+			TenantID: tenant.ID,
+		})
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "No access to specified tenant"})
+			return
+		}
+
+		// Generate tenant-aware token
+		token, err = middleware.GenerateTokenWithTenant(models.User{
+			ID:        user.ID,
+			Email:     user.Email,
+			FirstName: user.FirstName.String,
+			LastName:  user.LastName.String,
+			IsActive:  user.IsActive.Bool,
+			CreatedAt: user.CreatedAt.Time,
+			UpdatedAt: user.UpdatedAt.Time,
+		}, tenant.ID, tenant.Slug, h.cfg)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+			return
+		}
+
+		tenantID = tenant.ID
+		tenantSlug = tenant.Slug
+	} else {
+		// No tenant specified, try to get user's default tenant
+		defaultTenant, err := h.db.Queries.GetUserDefaultTenant(c.Request.Context(), user.ID)
+		if err == nil {
+			// User has a default tenant, use it
+			token, err = middleware.GenerateTokenWithTenant(models.User{
+				ID:        user.ID,
+				Email:     user.Email,
+				FirstName: user.FirstName.String,
+				LastName:  user.LastName.String,
+				IsActive:  user.IsActive.Bool,
+				CreatedAt: user.CreatedAt.Time,
+				UpdatedAt: user.UpdatedAt.Time,
+			}, defaultTenant.ID, defaultTenant.Slug, h.cfg)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+				return
+			}
+			tenantID = defaultTenant.ID
+			tenantSlug = defaultTenant.Slug
+		} else {
+			// No default tenant, generate regular token
+			token, err = middleware.GenerateToken(models.User{
+				ID:        user.ID,
+				Email:     user.Email,
+				FirstName: user.FirstName.String,
+				LastName:  user.LastName.String,
+				IsActive:  user.IsActive.Bool,
+				CreatedAt: user.CreatedAt.Time,
+				UpdatedAt: user.UpdatedAt.Time,
+			}, h.cfg)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+				return
+			}
+		}
 	}
 
 	// Return response
@@ -90,6 +153,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			CreatedAt: user.CreatedAt.Time,
 			UpdatedAt: user.UpdatedAt.Time,
 		},
+		TenantID:   tenantID,
+		TenantSlug: tenantSlug,
 	})
 }
 

@@ -9,6 +9,8 @@ import (
 	sqlc "go-rbac-api/internal/db/sqlc"
 	"go-rbac-api/internal/models"
 
+	"go-rbac-api/internal/middleware"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -334,5 +336,63 @@ func (h *TenantHandler) RemoveUserFromTenant(c *gin.Context) {
 
 	c.JSON(http.StatusOK, models.UserTenantResponse{
 		Message: "User removed from tenant successfully",
+	})
+}
+
+// JoinTenant handles POST /tenants/:id/join requests
+// @Summary      Join Tenant (Current User)
+// @Tags         tenants
+// @Accept       json
+// @Produce      json
+// @Param        id    path     string true "Tenant ID"
+// @Success      200   {object} models.UserTenantResponse
+// @Failure      400   {object} map[string]string
+// @Failure      404   {object} map[string]string
+// @Router       /tenants/{id}/join [post]
+func (h *TenantHandler) JoinTenant(c *gin.Context) {
+	// Get current user from context
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	tenantID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tenant ID"})
+		return
+	}
+
+	// Verify tenant exists
+	_, err = h.db.Queries.GetTenantByID(c.Request.Context(), tenantID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tenant not found"})
+		return
+	}
+
+	// Check if user is already in this tenant
+	_, err = h.db.Queries.GetUserTenant(c.Request.Context(), sqlc.GetUserTenantParams{
+		UserID:   userID,
+		TenantID: tenantID,
+	})
+	if err == nil {
+		// User is already in this tenant
+		c.JSON(http.StatusConflict, gin.H{"error": "User is already a member of this tenant"})
+		return
+	}
+
+	// Add user to tenant without a specific role (role_id will be NULL)
+	err = h.db.Queries.AddUserToTenant(c.Request.Context(), sqlc.AddUserToTenantParams{
+		UserID:   userID,
+		TenantID: tenantID,
+		RoleID:   uuid.NullUUID{Valid: false}, // No role assigned initially
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join tenant"})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.UserTenantResponse{
+		Message: "Successfully joined tenant",
 	})
 }

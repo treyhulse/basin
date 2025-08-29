@@ -25,8 +25,10 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
+	Token      string    `json:"token"`
+	User       User      `json:"user"`
+	TenantID   uuid.UUID `json:"tenant_id,omitempty"`
+	TenantSlug string    `json:"tenant_slug,omitempty"`
 }
 
 type SignUpRequest struct {
