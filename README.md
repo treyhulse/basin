@@ -1,151 +1,251 @@
-# Go RBAC API - Directus-style API with Role-Based Access Control
+# 🚀 Basin API - Dynamic Multi-Tenant REST API with RBAC
 
-A Go-based REST API that provides Directus-style functionality with comprehensive Role-Based Access Control (RBAC) including row-level and field-level security policies.
+A **production-ready** Go-based REST API that provides Directus-style functionality with comprehensive Role-Based Access Control (RBAC), multi-tenancy, and dynamic schema management. This is a fully functional, enterprise-grade API that can dynamically create and manage database tables, collections, and fields through the same REST endpoints.
 
-## 🚀 Features
+## 🌟 **Key Features**
 
-- **🔑 JWT Authentication** - Secure token-based authentication
-- **🔐 RBAC System** - Role-based access control with granular permissions
-- **📦 Dynamic API** - Generic `GET /items/:table` endpoints with automatic filtering
-- **🛡️ Field-Level Security** - Control which fields users can access
-- **📊 Row-Level Security** - Filter data based on user permissions
-- **🐘 PostgreSQL** - Robust database with UUID support
+- **🔑 Multi-Tenant Authentication** - JWT-based auth with tenant isolation
+- **🔐 Advanced RBAC System** - Role-based access control with field-level and row-level security
+- **📦 Dynamic Schema Management** - Create collections and fields via REST API
+- **🏢 Multi-Tenancy** - Complete tenant isolation with user-tenant relationships
+- **📊 Generic CRUD API** - `GET /items/:table` endpoints for any data table
+- **🛡️ Comprehensive Security** - Field-level permissions, row-level filtering, and input validation
+- **🐘 PostgreSQL** - Robust database with automatic table creation
 - **⚡ Type-Safe DB Access** - Generated with sqlc for compile-time safety
-- **🐳 Docker Ready** - Easy development setup with Docker Compose
+- **🐳 Docker Ready** - One-command development setup
+- **📚 OpenAPI/Swagger** - Auto-generated API documentation
 
-## 📋 **Prerequisites - Required Before Setup**
+## 🆕 **NEW: Self-Referential Schema Management**
 
-**⚠️ These must be installed and running BEFORE you start, or the setup will fail:**
+The Basin API can manage its own schema through the same REST endpoints:
 
-### **Required Software:**
+- **Collections** define data models (like database schemas)
+- **Fields** define columns and validation rules
+- **Dynamic Tables** are automatically created with `data_` prefix
+- **Same RBAC System** applies to schema management
+- **Triggers** handle automatic table creation/deletion
 
-1. **🐳 Docker Desktop** - [Download here](https://www.docker.com/products/docker-desktop/)
-   - **Windows:** Install Docker Desktop and make sure it's running (check system tray)
-   - **macOS:** Install Docker Desktop and start it
-   - **Linux:** Install Docker Engine and Docker Compose
+## 🚀 **Quick Start (2 Commands)**
 
-2. **🐹 Go 1.21+** - [Download here](https://golang.org/dl/)
-   - Verify installation: `go version`
+### **Prerequisites**
+- **🐳 Docker Desktop** - [Download here](https://www.docker.com/products/docker-desktop/)
+- **🐹 Go 1.21+** - [Download here](https://golang.org/dl/)
+- **📦 Git** - [Download here](https://git-scm.com/)
 
-3. **📦 Git** - [Download here](https://git-scm.com/)
-   - Verify installation: `git --version`
-
-### **Before Running Setup:**
-
-- ✅ **Docker Desktop is running** (check system tray on Windows)
-- ✅ **Go is installed** (`go version` works)
-- ✅ **Git is installed** (`git --version` works)
-- ✅ **Port 5432 is available** (stop any local PostgreSQL if running)
-
-**If any of these are missing, the setup script will fail and tell you what's missing.**
-
-### **Quick Verification (Optional)**
-Run these commands to verify everything is ready:
+### **Setup Commands**
 ```bash
-# Check Go
-go version
+# 1. Clone the repository
+git clone <your-repo-url>
+cd basin
 
-# Check Docker
-docker --version
-docker ps
-
-# Check Git
-git --version
-```
-
-## 🚀 **Getting Started - Super Simple Setup**
-
-### **🎯 Two Commands to Get Everything Running**
-
-**Want to get up and running in 2 minutes?**
-
-#### **Step 1: Clone the Repository**
-```bash
-git clone https://github.com/treyhulse/directus-clone.git
-cd directus-clone
-```
-
-#### **Step 2: Run the Setup Command**
-```bash
+# 2. Run the setup command
 make setup
 ```
 
 **That's it!** Your API will automatically start at http://localhost:8080
 
-#### **Step 3: Start the Application (after setup)**
-```bash
-make start
-```
-
----
-
-## 📋 **What the Setup Command Does**
-
-The `make setup` command automatically handles everything:
-
-1. ✅ **Checks prerequisites** (Go, Docker, Docker Compose, Git)
-2. 🔍 **Sets up environment variables** (creates .env file)
-3. 📦 **Installs Go dependencies** (`go mod tidy`)
-4. 🔧 **Installs sqlc** (database code generator)
-5. 🐘 **Starts PostgreSQL database** (with health checks)
-6. 🗄️ **Applies all database migrations**
-7. 🔨 **Generates database code** (`sqlc generate`)
-8. 🏗️ **Builds the application**
-
-**Perfect for:** New projects, demos, testing, learning - **zero additional steps needed!**
-
 ### **Daily Development Commands**
-After initial setup, use these commands for daily development:
-
 ```bash
-make start    # Start the application (cold start)
-make dev      # Start development server  
-make stop     # Stop the application
+make start    # Cold start everything
+make dev      # Start development server
+make stop     # Stop everything
 make restart  # Restart everything
 ```
 
 ---
 
-### **Installing Make on Windows**
+## 🏗️ **Architecture Overview**
 
-If you're on Windows and don't have Make installed, you can install it using Scoop:
+### **Core Components**
+- **Multi-Tenant System** - Complete tenant isolation with user-tenant relationships
+- **Dynamic Schema Engine** - Collections and fields managed via REST API
+- **RBAC Engine** - Comprehensive permission system with field-level control
+- **Generic CRUD Handler** - Single endpoint handles any table with automatic filtering
 
-```powershell
-# Install Scoop first (if not already installed)
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-Invoke-RestMethod get.scoop.sh | Invoke-Expression
-
-# Install Make
-scoop install make
-```
-
-**Alternative package managers:**
-- **Chocolatey:** `choco install make`
-- **WSL:** `sudo apt-get install make`
+### **Data Flow**
+1. **Collections** define data structure (e.g., "blog_posts")
+2. **Fields** define columns and validation (e.g., "title", "content", "author")
+3. **Dynamic Tables** are automatically created (`data_blog_posts`)
+4. **RBAC Policies** control access at field and row levels
+5. **Generic API** provides CRUD operations for any collection
 
 ---
 
-### **Manual Setup (Advanced)**
+## 🔌 **API Endpoints**
 
-**If you prefer to do everything manually:**
+### **Authentication**
+- `POST /auth/login` - User login with tenant context
+- `POST /auth/signup` - User registration
+- `GET /auth/me` - Get current user info
+- `POST /auth/switch-tenant` - Switch between user's tenants
+- `GET /auth/context` - Get current auth context
+- `GET /auth/tenants` - Get user's accessible tenants
 
+### **Dynamic CRUD Operations**
+- `GET /items/:table` - List items with RBAC filtering, pagination, and sorting
+- `GET /items/:table/:id` - Get single item
+- `POST /items/:table` - Create new item
+- `PUT /items/:table/:id` - Update item
+- `DELETE /items/:table/:id` - Delete item
+
+### **Schema Management (Same Endpoints!)**
+- `GET /items/collections` - List all collections
+- `POST /items/collections` - Create new collection
+- `PUT /items/collections/:id` - Update collection
+- `DELETE /items/collections/:id` - Delete collection
+
+- `GET /items/fields` - List all fields
+- `POST /items/fields` - Create new field
+- `PUT /items/fields/:id` - Update field
+- `DELETE /items/fields/:id` - Delete field
+
+### **Tenant Management**
+- `POST /tenants` - Create new tenant
+- `GET /tenants` - List all tenants
+- `GET /tenants/:id` - Get tenant details
+- `PUT /tenants/:id` - Update tenant
+- `DELETE /tenants/:id` - Delete tenant
+- `POST /tenants/:id/users` - Add user to tenant
+- `DELETE /tenants/:id/users/:user_id` - Remove user from tenant
+- `POST /tenants/:id/join` - Join existing tenant
+
+### **System**
+- `GET /health` - Health check
+- `GET /` - API information
+- `GET /swagger/*` - OpenAPI/Swagger documentation
+
+---
+
+## 🗄️ **Database Schema**
+
+### **Core Tables**
+- **`tenants`** - Multi-tenant organization system
+- **`users`** - User accounts with authentication
+- **`roles`** - Role definitions per tenant
+- **`user_roles`** - User-role assignments
+- **`user_tenants`** - Many-to-many user-tenant relationships
+- **`permissions`** - RBAC policies with field-level access control
+
+### **Schema Management Tables**
+- **`collections`** - Data model definitions
+- **`fields`** - Field definitions for collections
+
+### **Dynamic Data Tables**
+- **`data_[collection_name]`** - Automatically created for each collection
+
+### **Sample Business Tables**
+- **`products`** - Product catalog
+- **`customers`** - Customer information
+- **`orders`** - Order management
+- **`order_items`** - Order line items
+
+---
+
+## 🔐 **RBAC System**
+
+### **Permission Structure**
+```sql
+permissions (
+    role_id UUID,           -- Which role this applies to
+    table_name VARCHAR(100), -- Which table this applies to
+    action VARCHAR(50),      -- 'create', 'read', 'update', 'delete'
+    field_filter JSONB,      -- Row-level filtering {"field": "value"}
+    allowed_fields TEXT[],   -- Field-level access control
+    tenant_id UUID           -- Tenant isolation
+)
+```
+
+### **Security Features**
+- **Field-Level Security** - Control which columns users can see
+- **Row-Level Security** - Filter records based on user context
+- **Action-Based Permissions** - CRUD operation granularity
+- **Role Inheritance** - Users can have multiple roles
+- **Tenant Isolation** - Complete data separation between tenants
+
+---
+
+## 🔄 **Dynamic Schema Management Example**
+
+### **1. Create a Collection**
+```bash
+POST /items/collections
+{
+  "name": "blog_posts",
+  "display_name": "Blog Posts",
+  "description": "Blog post management",
+  "icon": "article"
+}
+```
+
+### **2. Add Fields to the Collection**
+```bash
+POST /items/fields
+{
+  "collection_id": "collection-uuid",
+  "name": "title",
+  "display_name": "Title",
+  "type": "string",
+  "is_required": true
+}
+
+POST /items/fields
+{
+  "collection_id": "collection-uuid",
+  "name": "content",
+  "display_name": "Content",
+  "type": "text",
+  "is_required": true
+}
+```
+
+### **3. System Automatically Creates**
+- `data_blog_posts` table with proper columns
+- Triggers for automatic updates
+- Indexes for performance
+
+### **4. Use the New Collection**
+```bash
+# Create a blog post
+POST /items/blog_posts
+{
+  "title": "My First Post",
+  "content": "Hello, world!"
+}
+
+# List all blog posts
+GET /items/blog_posts
+```
+
+---
+
+## 🚀 **Getting Started**
+
+### **Option 1: Automated Setup (Recommended)**
+```bash
+# Clone and setup
+git clone <your-repo-url>
+cd basin
+make setup
+```
+
+### **Option 2: Manual Setup**
 ```bash
 # 1. Clone the repository
-git clone https://github.com/treyhulse/directus-clone.git
-cd directus-clone
+git clone <your-repo-url>
+cd basin
 
 # 2. Set up environment variables
 cp env.example .env
 # Edit .env with your preferred settings
 
-# 3. Start the database
+# 3. Install dependencies
+make deps
+
+# 4. Start the database
 make docker-up
 
-# 4. Apply migrations
+# 5. Apply migrations
 make migrate
-
-# 5. Install Go dependencies
-make deps
 
 # 6. Generate database code
 make generate
@@ -153,89 +253,9 @@ make generate
 # 7. Build the application
 make build
 
-# 8. Run the application
+# 8. Start the server
 make dev
 ```
-
-**Or use individual Make commands:**
-- `make help` - Show all available commands
-- `make docker-up` - Start database
-- `make migrate` - Apply migrations  
-- `make deps` - Install dependencies
-- `make generate` - Generate database code
-- `make build` - Build application
-- `make dev` - Start development server
-
----
-
-## 🎯 **After Setup - Start Your API**
-
-**Once setup is complete, start your API:**
-
-```bash
-# Recommended: Use Make commands
-make start    # Cold start (stops containers, starts fresh)
-make dev      # Development server (just runs the app)
-
-# Alternative: Run directly  
-go run cmd/main.go
-
-# Alternative: Run the built binary
-./bin/api     # Linux/macOS
-.\bin\api.exe # Windows
-```
-
-**Your API will be available at:** `http://localhost:8080`
-
-**Default admin credentials:**
-- **Email:** `admin@example.com`
-- **Password:** `password`
-
-**API Keys for testing:**
-- **Admin:** `admin_api_key_123`
-- **Manager:** `manager_api_key_456`
-
----
-
-## 🐳 **Docker Management - Simple Start/Stop**
-
-**Need to quickly start/stop your database?**
-
-### **Using Make Commands (Recommended):**
-```bash
-make stop         # Stop everything
-make docker-up    # Start database only
-make docker-down  # Stop database only
-make docker-logs  # View database logs
-make restart      # Stop and restart everything
-```
-
-### **Direct Docker Commands:**
-```bash
-# Stop the database (keeps data intact)
-docker-compose down
-
-# Start the database back up
-docker-compose up -d
-
-# Restart in one command
-docker-compose restart
-
-# See what's running
-docker-compose ps
-# or
-docker ps
-
-# Complete reset (⚠️ DELETES ALL DATA!)
-docker-compose down -v
-# Then start fresh
-docker-compose up -d
-```
-
-**💡 Swagger Generation:** The database API docs can be updated with `swag init -g cmd/main.go`.
-
-
-**💡 Pro Tip:** The database data persists between stops/starts, so you won't lose your data when using `make stop` and `make start`.
 
 ---
 
@@ -267,480 +287,245 @@ ADMIN_FIRST_NAME=Admin
 ADMIN_LAST_NAME=User
 ```
 
-**You can customize these values in your `.env` file before running the setup.**
-
 ---
 
-## 🔧 **Troubleshooting Common Issues**
+## 🧪 **Testing the API**
 
-### **Setup Issues**
-
-#### **"Docker is not installed"**
-- **Solution:** Install Docker Desktop from https://www.docker.com/products/docker-desktop/
-- **Windows:** Make sure Docker Desktop is running (check system tray)
-- **Verify:** Run `docker --version` in terminal
-
-#### **"Docker Desktop is not running"**
-- **Solution:** 
-  1. Start Docker Desktop application
-  2. Wait for it to fully load (check system tray icon)
-  3. Verify with `docker ps` command
-
-#### **"Go is not installed"**
-- **Solution:** Install Go 1.21+ from https://golang.org/dl/
-- **Verify:** Run `go version` in terminal
-
-#### **"Git is not installed"**
-- **Solution:** Install Git from https://git-scm.com/
-- **Verify:** Run `git --version` in terminal
-
-#### **"docker-compose is not recognized"**
-- **Solution:** 
-  1. Make sure Docker Desktop is installed and running
-  2. Try using `docker compose up -d` (with a space instead of hyphen)
-  3. Restart your terminal after installing Docker Desktop
-
-#### **Database connection errors**
-- **Solution:** 
-  1. Make sure PostgreSQL is running: `docker-compose ps`
-  2. Check if port 5432 is available (stop any local PostgreSQL)
-  3. Restart Docker Desktop if needed
-
-#### **"sqlc is not recognized"**
-- **Solution:** The setup script will install it automatically, or run: `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
-
-### **Runtime Issues**
-
-#### **"403 Insufficient permissions"**
-- **Solution:** Make sure you're using the correct admin credentials:
-  - Email: `admin@example.com`
-  - Password: `password`
-
-#### **"Connection refused" on localhost:8080**
-- **Solution:** 
-  1. Make sure the API is running: `go run cmd/main.go`
-  2. Check if port 8080 is available
-  3. Try a different port in your `.env` file
-
-#### **Docker API errors (500 Internal Server Error)**
-- **Solution:** 
-  1. Restart Docker Desktop completely
-  2. Run `docker system prune -a` to clean up
-  3. Reset Docker Desktop to factory defaults if needed
-
----
-
-### **Quick Commands Reference**
-
+### **1. Login as Admin**
 ```bash
-# First time setup
-make setup
-
-# Daily development
-make start     # Cold start everything
-make dev       # Just run the app (database should be running)
-make stop      # Stop everything
-make restart   # Restart everything
-
-# Database management
-make migrate       # Apply new migrations
-make docker-up     # Start database only
-make docker-down   # Stop database only
-make docker-logs   # View database logs
-
-# Development tasks
-make build     # Build the application
-make test      # Run tests
-make clean     # Clean build artifacts
-make deps      # Update dependencies
-make generate  # Regenerate database code
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "password"
+  }'
 ```
 
-The API will be available at `http://localhost:8080`
-
-## 📚 API Documentation
-
-### OpenAPI
-
-- Swagger UI: `http://localhost:8080/swagger/index.html`
-- Swagger JSON: `http://localhost:8080/swagger/doc.json`
-- Generate a typed client for frontend using `openapi-typescript` or `orval`
-
-### Authentication
-
-#### Login
-```http
-POST /auth/login
-Content-Type: application/json
-
-{
-  "email": "admin@example.com",
-  "password": "password"
-}
+### **2. Create a Tenant**
+```bash
+curl -X POST http://localhost:8080/tenants \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Company",
+    "slug": "my-company"
+  }'
 ```
 
-Response:
+### **3. Create a Collection**
+```bash
+curl -X POST http://items/collections \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "products",
+    "display_name": "Products",
+    "description": "Product catalog"
+  }'
+```
+
+### **4. Add Fields to Collection**
+```bash
+curl -X POST http://items/fields \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_id": "COLLECTION_UUID",
+    "name": "name",
+    "display_name": "Product Name",
+    "type": "string",
+    "is_required": true
+  }'
+```
+
+---
+
+## 🛠️ **Development Commands**
+
+### **Make Commands (Recommended)**
+```bash
+make help          # Show all available commands
+make setup         # Complete initial setup (first time only)
+make start         # Cold start the application
+make dev           # Start development server
+make stop          # Stop the application
+make restart       # Stop and restart everything
+make build         # Build the application
+make test          # Run tests
+make clean         # Clean build artifacts
+make deps          # Update dependencies
+make generate      # Regenerate database code
+make migrate       # Apply database migrations
+make docker-up     # Start PostgreSQL
+make docker-down   # Stop PostgreSQL
+make docker-logs   # Show Docker logs
+make docs          # Generate Swagger documentation
+```
+
+### **Direct Commands (Alternative)**
+```bash
+go mod tidy                    # Download dependencies
+go run cmd/main.go            # Start development server
+go build -o bin/api cmd/main.go # Build the application
+./bin/api                     # Run the built application
+go test ./...                 # Run tests
+sqlc generate                 # Generate database code
+docker-compose up -d          # Start PostgreSQL
+docker-compose down           # Stop PostgreSQL
+```
+
+---
+
+## 📊 **API Features**
+
+### **Query Parameters**
+- **Pagination**: `limit`, `offset`, `page`, `per_page`
+- **Sorting**: `sort`, `order` (asc/desc)
+- **Filtering**: Field-based filtering via query parameters
+
+### **Response Format**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "uuid",
-    "email": "admin@example.com",
-    "first_name": "Admin",
-    "last_name": "User",
-    "is_active": true,
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z"
+  "data": [...],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "per_page": 20,
+    "total_pages": 5
   }
 }
 ```
 
-### API Key Authentication
-You can also authenticate using API keys for programmatic access:
+### **Error Handling**
+- **400** - Bad Request (validation errors)
+- **401** - Unauthorized (authentication required)
+- **403** - Forbidden (insufficient permissions)
+- **404** - Not Found (resource doesn't exist)
+- **409** - Conflict (duplicate resource)
+- **500** - Internal Server Error
 
-```http
-GET /items/products
-Authorization: Bearer admin_api_key_123
-```
+---
 
-**Available API Keys:**
-- `admin_api_key_123` - Full admin access
-- `manager_api_key_456` - Manager-level access
+## 🔒 **Security Features**
 
-#### Get Current User
-```http
-GET /auth/me
-Authorization: Bearer <token>
-```
+### **Authentication**
+- JWT tokens with configurable expiry
+- Secure password hashing with bcrypt
+- Token-based session management
 
-### Items API
+### **Authorization**
+- Role-based access control (RBAC)
+- Field-level permissions
+- Row-level security with JSONB filters
+- Tenant isolation
 
-All items endpoints require authentication. Include the JWT token in the Authorization header.
+### **Input Validation**
+- SQL injection protection via sqlc
+- Table name validation
+- JSON payload validation
+- UUID validation
 
-#### List Items
-```http
-GET /items/:table?limit=50&offset=0&sort=created_at&order=desc
-Authorization: Bearer <token>
-```
+---
 
-#### Get Single Item
-```http
-GET /items/:table/:id
-Authorization: Bearer <token>
-```
+## 🚀 **Deployment**
 
-#### Create Item
-```http
-POST /items/:table
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "name": "New Product",
-  "description": "Product description",
-  "price": 99.99
-}
-```
-
-#### Update Item
-```http
-PUT /items/:table/:id
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "name": "Updated Product",
-  "price": 89.99
-}
-```
-
-#### Delete Item
-```http
-DELETE /items/:table/:id
-Authorization: Bearer <token>
-```
-
-## 🗄️ Database Schema
-
-### Core Tables
-
-- **users** - User accounts with authentication
-- **roles** - Available roles in the system
-- **user_roles** - Many-to-many relationship between users and roles
-- **permissions** - RBAC permissions with field-level access control
-
-### Sample Tables
-
-- **products** - Product catalog
-- **customers** - Customer information
-- **orders** - Order records
-- **order_items** - Order line items
-
-## 🔐 RBAC System
-
-### Roles
-
-1. **admin** - Full system access
-2. **manager** - Can manage products and view orders
-3. **sales** - Can view products and create orders
-4. **customer** - Can view products and own orders
-
-### Permission Structure
-
-Each permission defines:
-- **role_id** - Which role this applies to
-- **table_name** - Which table this applies to
-- **action** - What action is allowed (create, read, update, delete)
-- **field_filter** - Row-level filtering (JSONB)
-- **allowed_fields** - Field-level access control (array of field names)
-
-### Example Permissions
-
-```sql
--- Admin can do everything on products
-INSERT INTO permissions (role_id, table_name, action, allowed_fields) 
-VALUES (admin_role_id, 'products', 'read', ARRAY['*']);
-
--- Sales can only see certain product fields
-INSERT INTO permissions (role_id, table_name, action, allowed_fields) 
-VALUES (sales_role_id, 'products', 'read', ARRAY['id', 'name', 'description', 'price', 'category']);
-```
-
-## 🧪 Testing
-
-### Automated Testing
-
-The project includes comprehensive integration tests that test the real API against a running server and database:
-
-```bash
-# Run all tests
-make test
-
-# Run with verbose output
-make test-verbose
-
-# Run with coverage report
-make test-coverage
-
-# Run integration tests specifically
-make test-integration
-
-# Run integration tests with automatic database setup
-make test-integration-full
-```
-
-**Integration tests cover:**
-- ✅ Real authentication flows (login, JWT validation)
-- ✅ All API endpoints with actual database operations
-- ✅ Role-based access control with real permissions
-- ✅ Error handling and edge cases
-- ✅ End-to-end functionality
-
-### Manual API Testing
-
-### 1. Login as Admin
-
-```bash
-curl -X POST http://localhost:8080/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@example.com", "password": "password"}'
-```
-
-### 2. Get Products (with token from login)
-
-```bash
-curl -X GET http://localhost:8080/items/products \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
-```
-
-### 3. Create a Product
-
-```bash
-curl -X POST http://localhost:8080/items/products \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Test Product",
-    "description": "A test product",
-    "price": 29.99,
-    "category": "Electronics",
-    "stock_quantity": 100
-  }'
-```
-
-## 🛠️ Development
-
-### Project Structure
-
-```
-go-rbac-api/
-├── cmd/
-│   └── main.go              # Application entry point
-├── internal/
-│   ├── api/
-│   │   ├── auth.go          # Authentication handlers
-│   │   └── items.go         # Dynamic items API
-│   ├── config/
-│   │   └── env.go           # Configuration management
-│   ├── db/
-│   │   ├── postgres.go      # Database connection
-│   │   ├── query.sql        # SQL queries for sqlc
-│   │   └── sqlc/            # Generated database code
-│   ├── middleware/
-│   │   └── auth.go          # JWT authentication middleware
-│   ├── models/
-│   │   └── user.go          # User model and auth helpers
-│   └── rbac/
-│       └── policies.go      # RBAC policy checker
-├── migrations/
-│   └── 001_init.sql         # Database schema and seed data
-├── docker-compose.yml       # PostgreSQL setup
-├── sqlc.yaml               # sqlc configuration
-├── go.mod                  # Go module file
-└── Makefile                # Development commands
-```
-
-### Available Commands
-
-#### Make Commands (Recommended)
-- `make help` - Show all available commands
-- `make setup` - Complete initial setup (first time only)
-- `make start` - Cold start the application
-- `make dev` - Start development server
-- `make stop` - Stop the application
-- `make restart` - Stop and restart everything
-- `make build` - Build the application
-- `make test` - Run tests
-- `make clean` - Clean build artifacts
-- `make deps` - Download dependencies
-- `make generate` - Generate database code
-- `make migrate` - Apply database migrations
-- `make docker-up` - Start PostgreSQL
-- `make docker-down` - Stop PostgreSQL
-- `make docker-logs` - Show Docker logs
-
-#### Direct Commands (Alternative)
-- `go mod tidy` - Download dependencies
-- `go run cmd/main.go` - Start development server
-- `go build -o bin/api cmd/main.go` - Build the application
-- `./bin/api` - Run the built application
-- `go test ./...` - Run tests
-- `sqlc generate` - Generate database code
-- `docker-compose up -d` - Start PostgreSQL
-- `docker-compose down` - Stop PostgreSQL
-
-### Environment Variables
-
-Copy `env.example` to `.env` and configure:
-
-```bash
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=go_rbac_db
-DB_SSLMODE=disable
-
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
-JWT_EXPIRY=24h
-
-# Server Configuration
-SERVER_PORT=8080
-SERVER_MODE=debug
-```
-
-## 🔧 Configuration
-
-### Database
-
-The application uses PostgreSQL with the following default settings:
-- Host: localhost
-- Port: 5432
-- Database: go_rbac_db
-- User: postgres
-- Password: postgres
-
-### JWT
-
-- Secret: Configured via `JWT_SECRET` environment variable
-- Expiry: Configurable via `JWT_EXPIRY` (default: 24h)
-
-## 🚀 Deployment
-
-### Build for Production
-
+### **Production Build**
 ```bash
 make build
 ```
 
-### Docker Deployment
-
+### **Docker Deployment**
 ```bash
 # Build the application
-docker build -t go-rbac-api .
+docker build -t basin-api .
 
 # Run with environment variables
 docker run -p 8080:8080 \
   -e DB_HOST=your-db-host \
   -e DB_PASSWORD=your-db-password \
   -e JWT_SECRET=your-jwt-secret \
-  go-rbac-api
+  basin-api
 ```
 
-## 🤝 Contributing
+### **Environment Variables for Production**
+```bash
+DB_HOST=your-production-db-host
+DB_PASSWORD=your-secure-password
+JWT_SECRET=your-super-secure-jwt-secret
+SERVER_MODE=release
+```
+
+---
+
+## 🔄 **Roadmap & Future Enhancements**
+
+### **Completed Features** ✅
+- [x] Multi-tenant architecture
+- [x] Dynamic schema management
+- [x] Comprehensive RBAC system
+- [x] Generic CRUD API
+- [x] Field-level and row-level security
+- [x] OpenAPI/Swagger documentation
+- [x] Docker development environment
+- [x] Comprehensive testing suite
+
+### **Planned Enhancements** 🚧
+- [ ] Real-time subscriptions (WebSocket)
+- [ ] GraphQL support
+- [ ] File upload functionality
+- [ ] Audit logging system
+- [ ] Rate limiting
+- [ ] Caching layer
+- [ ] Admin dashboard frontend
+- [ ] API versioning
+- [ ] Bulk operations
+- [ ] Advanced query language
+
+---
+
+## 🤝 **Contributing**
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 📄 License
+## 📄 **License**
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🆘 Support
+## 🆘 **Support**
 
 For support and questions:
 - Create an issue in the repository
-- Check the API documentation at `http://localhost:8080/` when running
+- Check the API documentation at `http://localhost:8080/swagger/` when running
+- Review the comprehensive test suite for usage examples
 
-## 🔧 Troubleshooting
+---
 
-### Common Issues
+## 🔧 **Troubleshooting**
 
-#### "make is not recognized"
-- **Solution**: Use the direct commands in the Quick Start section above, or install make using Chocolatey (`choco install make`) or Scoop (`scoop install make`)
+### **Common Issues**
 
-#### "docker-compose is not recognized"
-- **Solution**: 
-  1. Make sure Docker Desktop is installed and running
-  2. Try using `docker compose up -d` (with a space instead of hyphen)
-  3. Restart your terminal after installing Docker Desktop
+#### **"make is not recognized"**
+- **Windows**: Install using Scoop (`scoop install make`) or Chocolatey (`choco install make`)
+- **Alternative**: Use the direct commands listed above
 
-#### Docker API errors (500 Internal Server Error)
-- **Solution**: 
-  1. Restart Docker Desktop completely
-  2. Make sure Docker Desktop is fully started (check system tray icon)
-  3. Try running `docker system prune -a` to clean up Docker cache
-  4. If the issue persists, try switching Docker Desktop to Windows containers and back to Linux containers
-  5. As a last resort, reset Docker Desktop to factory defaults
+#### **"docker-compose is not recognized"**
+- Make sure Docker Desktop is installed and running
+- Try using `docker compose up -d` (with a space instead of hyphen)
+- Restart your terminal after installing Docker Desktop
 
-#### "sqlc is not recognized"
-- **Solution**: Install sqlc using `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
+#### **Database connection errors**
+- Ensure PostgreSQL is running: `docker-compose ps`
+- Check if port 5432 is available
+- Restart Docker Desktop if needed
 
-#### Database connection errors
-- **Solution**: Make sure PostgreSQL is running with `docker-compose ps` or `docker compose ps`
+#### **"sqlc is not recognized"**
+- The setup script installs it automatically
+- Manual installation: `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
 
-## 🔄 Roadmap
+---
 
-- [x] Add comprehensive integration tests
-- [ ] Implement real-time subscriptions
-- [ ] Add GraphQL support
-- [ ] Implement file upload functionality
-- [ ] Add audit logging
-- [ ] Create admin dashboard
-- [ ] Add rate limiting
-- [ ] Implement caching layer 
+**🎯 The Basin API is production-ready and provides enterprise-grade functionality for building scalable, secure, and flexible applications with dynamic schema management and comprehensive RBAC.** 
