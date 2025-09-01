@@ -1,227 +1,127 @@
-.PHONY: help setup start stop restart dev build test test-verbose test-coverage clean deps generate sqlc migrate docker-up docker-down docker-logs docs
+# Environment variables
+BUILD_ENV ?= production
+DOCKER_IMAGE_NAME = basin-backend
+DOCKER_TAG = latest
 
 # Default target
-help:
-	@echo Basin API - Available Commands:
-	@echo.
-	@echo Setup ^& Start:
-	@echo   setup     - Complete initial setup (env, deps, docker, migrations, build)
-	@echo   start     - Cold start the application (docker, sqlc, build, run)
-	@echo   restart   - Stop and restart the application
-	@echo   dev       - Start development server with hot reload
-	@echo.
-	@echo Database Management:
-	@echo   migrate   - Apply database migrations (manual use only)
-	@echo   docker-up   - Start PostgreSQL with Docker
-	@echo   docker-down - Stop PostgreSQL
-	@echo   docker-logs - Show Docker logs
-	@echo.
-	@echo Build ^& Development:
-	@echo   build     - Build the application
-	@echo   test      - Run all tests (unit + integration)
-	@echo   test-verbose - Run tests with detailed output  
-	@echo   test-coverage - Run tests with coverage report
-	@echo   clean     - Clean build artifacts
-	@echo   deps      - Download dependencies
-	@echo   generate  - Generate sqlc code
-	@echo   docs      - Generate Swagger docs
-	@echo   sqlc      - Run sqlc generate
-	@echo.
-	@echo Examples:
-	@echo   make setup   # First time setup
-	@echo   make start   # Start the application
-	@echo   make restart # Restart everything
+.DEFAULT_GOAL := help
 
-# Complete initial setup
-setup:
-	@echo Basin API - Complete Setup
-	@echo.
-	@echo Checking prerequisites...
-	@powershell -Command "if (-not (Get-Command 'go' -ErrorAction SilentlyContinue)) { Write-Host 'ERROR: Go is not installed' -ForegroundColor Red; exit 1 }"
-	@powershell -Command "if (-not (Get-Command 'docker' -ErrorAction SilentlyContinue)) { Write-Host 'ERROR: Docker is not installed' -ForegroundColor Red; exit 1 }"
-	@echo SUCCESS: Prerequisites check passed
-	@echo.
-	@echo Setting up environment...
-	@if not exist .env (copy env.example .env)
-	@echo SUCCESS: Environment configured
-	@echo.
-	@echo Installing dependencies...
-	@go mod tidy
-	@echo SUCCESS: Dependencies installed
-	@echo.
-	@echo Installing sqlc...
-	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	@echo SUCCESS: sqlc installed
-	@echo.
-	@echo Starting database...
-	@docker-compose down -v 2>nul
-	@docker-compose up -d
-	@echo Waiting for database to be ready...
-	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
-	@echo.
-	@echo Applying consolidated migration...
-	@type "migrations\001_complete_schema.sql" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
-	@echo SUCCESS: Migrations applied
-	@echo.
-	@echo Generating database code...
-	@sqlc generate
-	@echo SUCCESS: Database code generated
-	@echo.
-	@echo Building application...
-	@if not exist bin mkdir bin
-	@go build -o bin/api cmd/main.go
-	@echo SUCCESS: Application built
-	@echo.
-	@echo Setup complete! Run 'make start' to start the server.
+.PHONY: help
+help: ## Show this help message
+	@echo "Basin Backend - Available Commands:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Environment: BUILD_ENV=$(BUILD_ENV)"
+	@echo "Docker Image: $(DOCKER_IMAGE_NAME):$(DOCKER_TAG)"
 
-# Cold start the application
-start:
-	@echo Basin API - Cold Start
-	@echo.
-	@echo Stopping any existing containers...
-	@docker-compose down -v 2>nul
-	@echo.
-	@echo Starting database...
-	@docker-compose up -d
-	@echo Waiting for database to be ready...
-	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
-	@echo.
-	@echo Generating database code...
-	@sqlc generate
-	@echo SUCCESS: Database code generated
-	@echo.
-	@echo Generating Swagger docs...
-	@swag init -g cmd/main.go -o docs 2>nul || echo "(tip) Install swag with: go install github.com/swaggo/swag/cmd/swag@latest"
-	@echo Building application...
-	@if not exist bin mkdir bin
-	@go build -o bin/api cmd/main.go
-	@echo SUCCESS: Application built
-	@echo.
-	@echo Starting Basin API server...
-	@echo Server will be available at: http://localhost:8080
-	@echo Health check: http://localhost:8080/health
-	@echo.
-	@echo Default admin credentials:
-	@echo   Email: admin@example.com
-	@echo   Password: password
-	@echo.
-	@echo Press Ctrl+C to stop the server
-	@echo ================================
-	@go run cmd/main.go
+# Docker build targets
+.PHONY: docker-build
+docker-build: ## Build Docker image for current environment
+	@echo "Building Docker image for $(BUILD_ENV) environment..."
+	docker build \
+		--target $(BUILD_ENV) \
+		--build-arg BUILD_ENV=$(BUILD_ENV) \
+		-t $(DOCKER_IMAGE_NAME):$(DOCKER_TAG) \
+		.
 
-# Restart the application
-restart: stop start
+.PHONY: docker-build-prod
+docker-build-prod: ## Build Docker image for production
+	@$(MAKE) docker-build BUILD_ENV=production
 
-# Stop the application
-stop:
-	@echo Stopping Basin API...
-	@docker-compose down
-	@echo SUCCESS: Application stopped
+.PHONY: docker-build-dev
+docker-build-dev: ## Build Docker image for development
+	@$(MAKE) docker-build BUILD_ENV=development
 
-# Development server with hot reload
-dev:
-	@echo Starting development server...
-	@echo Generating Swagger docs...
-	@swag init -g cmd/main.go -o docs 2>nul || echo "(tip) Install swag with: go install github.com/swaggo/swag/cmd/swag@latest"
-	@go run cmd/main.go
+# Local development targets
+.PHONY: local-dev
+local-dev: ## Start local development environment with Docker Compose
+	@echo "Starting local development environment..."
+	docker-compose up --build
 
-# Build the application
-build:
-	@echo Building application...
-	@if not exist bin mkdir bin
-	@go build -o bin/api cmd/main.go
-	@echo SUCCESS: Application built
+.PHONY: local-dev-detached
+local-dev-detached: ## Start local development environment in background
+	@echo "Starting local development environment in background..."
+	docker-compose up --build -d
 
-# Run tests (clean output)
-test:
-	@echo Running all tests (unit + integration)...
-	@echo.
-	@echo Starting database if not running...
-	@docker-compose up -d
-	@echo Waiting for database to be ready...
-	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
-	@echo.
-	@echo Running all tests...
-	@go test ./...
-	@echo.
-	@echo Tests completed successfully!
+.PHONY: local-stop
+local-stop: ## Stop local development environment
+	@echo "Stopping local development environment..."
+	docker-compose down
 
-# Run tests with verbose output
-test-verbose:
-	@echo Running tests with verbose output...
-	@go test ./... -v
+.PHONY: local-logs
+local-logs: ## Show local development logs
+	docker-compose logs -f
 
-# Run tests with coverage
-test-coverage:
-	@echo Running tests with coverage...
-	@go test ./... -coverprofile=coverage.out
-	@go tool cover -html=coverage.out -o coverage.html
-	@del coverage.out
-	@echo.
-	@echo Coverage report generated: coverage.html
+# Railway deployment targets
+.PHONY: railway-deploy
+railway-deploy: ## Deploy to Railway using Docker
+	@echo "Deploying to Railway using Docker..."
+	@echo ""
+	@echo "Prerequisites:"
+	@echo "  1. Install Railway CLI: npm install -g @railway/cli"
+	@echo "  2. Login to Railway: railway login"
+	@echo "  3. Link to project: railway link"
+	@echo "  4. Ensure PostgreSQL service exists in Railway"
+	@echo ""
+	@echo "Building production Docker image..."
+	@$(MAKE) docker-build-prod
+	@echo "Deploying to Railway..."
+	railway up
 
+.PHONY: railway-logs
+railway-logs: ## View Railway logs
+	@echo "Fetching Railway logs..."
+	railway logs
 
+.PHONY: railway-status
+railway-status: ## Check Railway deployment status
+	@echo "Checking Railway status..."
+	railway status
 
-# Clean build artifacts
-clean:
-	@echo Cleaning build artifacts...
-	@if exist bin rmdir /s /q bin
-	@go clean
-	@echo SUCCESS: Cleaned
+# Database targets
+.PHONY: test-db-local
+test-db-local: ## Test local database connection
+	@echo "Testing local database connection..."
+	@echo "Note: Make sure local-dev is running first"
+	@go run test_connection.go.bak
 
-# Download dependencies
-deps:
-	@echo Downloading dependencies...
-	@go mod download
-	@go mod tidy
-	@echo SUCCESS: Dependencies updated
+.PHONY: test-db-railway
+test-db-railway: ## Test Railway database connection
+	@echo "Testing Railway database connection..."
+	@echo "Note: You need DATABASE_URL set for this to work"
+	@DEPLOYMENT_MODE=railway go run test_connection.go.bak
 
-# Generate sqlc code
-generate: sqlc
+.PHONY: test-db-auto
+test-db-auto: ## Test database connection with auto-detection
+	@echo "Testing database connection with auto-detection..."
+	@go run test_connection.go.bak
 
-# Run sqlc generate
-sqlc:
-	@echo Generating sqlc code...
-	@sqlc generate
-	@echo SUCCESS: Database code generated
+# Utility targets
+.PHONY: clean
+clean: ## Clean up Docker images and containers
+	@echo "Cleaning up Docker resources..."
+	docker system prune -f
+	docker image prune -f
 
-# Generate swagger docs
-docs:
-	@echo Generating Swagger docs...
-	@swag init -g cmd/main.go -o docs
-	@echo SUCCESS: Swagger docs generated at docs/
+.PHONY: clean-all
+clean-all: ## Clean up all Docker resources (including images)
+	@echo "Cleaning up all Docker resources..."
+	docker system prune -af
 
-# Apply database migrations (only if needed)
-migrate:
-	@echo Applying database migrations...
-	@echo Checking if database is running...
-	@docker exec go-rbac-postgres pg_isready -U postgres >nul 2>&1 || (echo Database not running, starting it... && docker-compose up -d)
-	@echo Waiting for database to be ready...
-	@powershell -Command "$$attempt = 0; do { $$attempt++; Start-Sleep -Seconds 2; $$result = docker exec go-rbac-postgres pg_isready -U postgres 2>$$null; if ($$LASTEXITCODE -eq 0) { Write-Host 'SUCCESS: Database ready' -ForegroundColor Green; break } } while ($$attempt -lt 30)"
-	@echo.
-	@echo Applying consolidated migration...
-	@type "migrations\001_complete_schema.sql" | docker exec -i go-rbac-postgres psql -U postgres -d go_rbac_db
-	@echo SUCCESS: Migrations applied
+.PHONY: docker-shell
+docker-shell: ## Open shell in running container
+	@echo "Opening shell in running container..."
+	docker-compose exec app sh
 
-# Start PostgreSQL with Docker
-docker-up:
-	@echo Starting PostgreSQL with Docker...
-	@docker-compose up -d
-	@echo SUCCESS: Database started
-
-# Stop PostgreSQL
-docker-down:
-	@echo Stopping PostgreSQL...
-	@docker-compose down
-	@echo SUCCESS: Database stopped
-
-# Show Docker logs
-docker-logs:
-	@echo Showing Docker logs...
-	@docker-compose logs -f
-
-# Install sqlc (if not already installed)
-install-sqlc:
-	@echo Installing sqlc...
-	@go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	@echo SUCCESS: sqlc installed 
+# Migration targets (now handled automatically by the app)
+.PHONY: railway-migrate
+railway-migrate: ## Migrations now run automatically during deployment!
+	@echo "Migrations now run automatically during deployment!"
+	@echo ""
+	@echo "To run migrations:"
+	@echo "  1. Deploy your app: make railway-deploy"
+	@echo "  2. Migrations will run automatically on startup"
+	@echo ""
+	@echo "To check migration status, view Railway logs:"
+	@echo "  make railway-logs" 

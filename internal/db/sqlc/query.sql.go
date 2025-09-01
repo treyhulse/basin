@@ -106,40 +106,6 @@ func (q *Queries) CreateCollection(ctx context.Context, arg CreateCollectionPara
 	return i, err
 }
 
-const createCustomer = `-- name: CreateCustomer :one
-INSERT INTO customers (first_name, last_name, email, phone, address) VALUES ($1, $2, $3, $4, $5) RETURNING id, first_name, last_name, email, phone, address, created_at, updated_at
-`
-
-type CreateCustomerParams struct {
-	FirstName string         `json:"first_name"`
-	LastName  string         `json:"last_name"`
-	Email     string         `json:"email"`
-	Phone     sql.NullString `json:"phone"`
-	Address   sql.NullString `json:"address"`
-}
-
-func (q *Queries) CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, createCustomer,
-		arg.FirstName,
-		arg.LastName,
-		arg.Email,
-		arg.Phone,
-		arg.Address,
-	)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.FirstName,
-		&i.LastName,
-		&i.Email,
-		&i.Phone,
-		&i.Address,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const createField = `-- name: CreateField :one
 INSERT INTO fields (id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, relation_config, sort_order, tenant_id) 
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, collection_id, name, display_name, type, is_primary, is_required, is_unique, default_value, validation_rules, sort_order, relation_config, tenant_id, created_at, updated_at
@@ -328,15 +294,6 @@ func (q *Queries) DeleteCollection(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const deleteCustomer = `-- name: DeleteCustomer :exec
-DELETE FROM customers WHERE id = $1
-`
-
-func (q *Queries) DeleteCustomer(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteCustomer, id)
-	return err
-}
-
 const deleteField = `-- name: DeleteField :exec
 DELETE FROM fields WHERE id = $1
 `
@@ -374,9 +331,12 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 }
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
+
 SELECT id, user_id, name, key_hash, is_active, expires_at, last_used_at, created_at, updated_at FROM api_keys WHERE key_hash = $1 AND is_active = true
 `
 
+// Note: Customer queries removedm - customers are now managed through dynamic collections
+// The data_customers table is created automatically when the customers collection is created
 // API Key Management Queries
 func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error) {
 	row := q.db.QueryRowContext(ctx, getAPIKeyByHash, keyHash)
@@ -537,62 +497,6 @@ func (q *Queries) GetCollections(ctx context.Context) ([]Collection, error) {
 			&i.TenantID,
 			&i.CreatedBy,
 			&i.UpdatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getCustomer = `-- name: GetCustomer :one
-SELECT id, first_name, last_name, email, phone, address, created_at, updated_at FROM customers WHERE id = $1
-`
-
-func (q *Queries) GetCustomer(ctx context.Context, id uuid.UUID) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, getCustomer, id)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.FirstName,
-		&i.LastName,
-		&i.Email,
-		&i.Phone,
-		&i.Address,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getCustomers = `-- name: GetCustomers :many
-SELECT id, first_name, last_name, email, phone, address, created_at, updated_at FROM customers
-`
-
-func (q *Queries) GetCustomers(ctx context.Context) ([]Customer, error) {
-	rows, err := q.db.QueryContext(ctx, getCustomers)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Customer{}
-	for rows.Next() {
-		var i Customer
-		if err := rows.Scan(
-			&i.ID,
-			&i.FirstName,
-			&i.LastName,
-			&i.Email,
-			&i.Phone,
-			&i.Address,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1357,42 +1261,6 @@ func (q *Queries) UpdateCollection(ctx context.Context, arg UpdateCollectionPara
 		&i.TenantID,
 		&i.CreatedBy,
 		&i.UpdatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateCustomer = `-- name: UpdateCustomer :one
-UPDATE customers SET first_name = $2, last_name = $3, email = $4, phone = $5, address = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id, first_name, last_name, email, phone, address, created_at, updated_at
-`
-
-type UpdateCustomerParams struct {
-	ID        uuid.UUID      `json:"id"`
-	FirstName string         `json:"first_name"`
-	LastName  string         `json:"last_name"`
-	Email     string         `json:"email"`
-	Phone     sql.NullString `json:"phone"`
-	Address   sql.NullString `json:"address"`
-}
-
-func (q *Queries) UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error) {
-	row := q.db.QueryRowContext(ctx, updateCustomer,
-		arg.ID,
-		arg.FirstName,
-		arg.LastName,
-		arg.Email,
-		arg.Phone,
-		arg.Address,
-	)
-	var i Customer
-	err := row.Scan(
-		&i.ID,
-		&i.FirstName,
-		&i.LastName,
-		&i.Email,
-		&i.Phone,
-		&i.Address,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

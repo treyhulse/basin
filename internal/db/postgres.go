@@ -19,6 +19,14 @@ type DB struct {
 func NewDB(cfg *config.Config) (*DB, error) {
 	connStr := cfg.GetDBConnString()
 
+	// Check if we have a valid connection string
+	if connStr == "" {
+		if cfg.DeploymentMode == config.DeploymentModeRailway {
+			return nil, fmt.Errorf("Railway deployment mode requires DATABASE_URL environment variable")
+		}
+		return nil, fmt.Errorf("invalid database connection string")
+	}
+
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)

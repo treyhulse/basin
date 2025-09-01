@@ -123,17 +123,8 @@ CREATE TABLE api_keys (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create sample tables for demonstration
-CREATE TABLE customers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    phone VARCHAR(20),
-    address TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Note: Sample tables are no longer created here
+-- Dynamic collections will create their own data tables automatically
 
 -- Create indexes for performance
 CREATE INDEX idx_users_tenant_id ON users(tenant_id);
@@ -174,6 +165,13 @@ SELECT u.id, r.id
 FROM users u, roles r 
 WHERE u.email = 'manager@example.com' AND r.name = 'manager';
 
+-- Ensure admin user has admin role (this should always work)
+INSERT INTO user_roles (user_id, role_id) 
+SELECT u.id, r.id 
+FROM users u, roles r 
+WHERE u.email = 'admin@example.com' AND r.name = 'admin'
+ON CONFLICT (user_id, role_id) DO NOTHING;
+
 -- Assign users to tenants (many-to-many relationship)
 INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) 
 SELECT u.id, t.id, r.id, true
@@ -185,13 +183,20 @@ SELECT u.id, t.id, r.id, true
 FROM users u, tenants t, roles r 
 WHERE u.email = 'manager@example.com' AND t.slug = 'main' AND r.name = 'manager';
 
+-- Ensure admin user is properly assigned to main tenant
+INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) 
+SELECT u.id, t.id, r.id, true
+FROM users u, tenants t, roles r 
+WHERE u.email = 'admin@example.com' AND t.slug = 'main' AND r.name = 'admin'
+ON CONFLICT (user_id, tenant_id) DO NOTHING;
+
 -- Insert sample permissions for admin role
 INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) VALUES
-    -- Admin permissions (all tables, all actions, all fields)
-    ((SELECT id FROM roles WHERE name = 'admin'), 'customers', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'customers', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'customers', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'customers', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
+    -- Admin permissions for dynamic data tables (all tables, all actions, all fields)
+    ((SELECT id FROM roles WHERE name = 'admin'), 'data_customers', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
+    ((SELECT id FROM roles WHERE name = 'admin'), 'data_customers', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
+    ((SELECT id FROM roles WHERE name = 'admin'), 'data_customers', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
+    ((SELECT id FROM roles WHERE name = 'admin'), 'data_customers', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
     
     -- Admin can manage system tables
     ((SELECT id FROM roles WHERE name = 'admin'), 'users', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
@@ -247,14 +252,8 @@ INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id)
     ((SELECT id FROM roles WHERE name = 'sales'), 'api_keys', 'update', ARRAY['name', 'is_active'], (SELECT id FROM tenants WHERE slug = 'main')),
     ((SELECT id FROM roles WHERE name = 'sales'), 'api_keys', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main'));
 
--- Insert customer permissions
-INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) VALUES
-    ((SELECT id FROM roles WHERE name = 'customer'), 'customers', 'read', ARRAY['id', 'first_name', 'last_name', 'email'], (SELECT id FROM tenants WHERE slug = 'main'));
-
--- Insert sample data
-INSERT INTO customers (first_name, last_name, email, phone, address) VALUES
-    ('John', 'Doe', 'john.doe@example.com', '+1234567890', '123 Main St, City, State'),
-    ('Jane', 'Smith', 'jane.smith@example.com', '+0987654321', '456 Oak Ave, Town, State');
+-- Note: Customer permissions and data are now managed dynamically through the collections system
+-- The data_customers table will be created automatically when the customers collection is created
 
 -- Insert sample API keys for testing
 INSERT INTO api_keys (user_id, name, key_hash, expires_at) VALUES
@@ -317,9 +316,10 @@ DECLARE
     field_record RECORD;
     tenant_schema TEXT;
     has_fields BOOLEAN;
+    tenant_id UUID;
 BEGIN
-    -- Get the tenant schema for this collection
-    SELECT t.slug INTO tenant_schema 
+    -- Get the tenant schema and ID for this collection
+    SELECT t.slug, c.tenant_id INTO tenant_schema, tenant_id
     FROM tenants t 
     JOIN collections c ON t.id = c.tenant_id 
     WHERE c.id = p_collection_id;
@@ -330,6 +330,13 @@ BEGIN
     -- Start building the CREATE TABLE statement
     create_table_sql := 'CREATE TABLE IF NOT EXISTS "' || tenant_schema || '".data_' || p_table_name || ' (';
     create_table_sql := create_table_sql || 'id UUID PRIMARY KEY DEFAULT uuid_generate_v4()';
+    
+    -- Add standard fields that every collection should have
+    create_table_sql := create_table_sql || ', created_by UUID';
+    create_table_sql := create_table_sql || ', updated_by UUID';
+    create_table_sql := create_table_sql || ', created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()';
+    create_table_sql := create_table_sql || ', updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()';
+    create_table_sql := create_table_sql || ', tenant_id UUID DEFAULT ''' || tenant_id || '''';
     
     -- Add fields from the fields table (if any exist)
     IF has_fields THEN
@@ -351,7 +358,7 @@ BEGIN
                 WHEN 'integer', 'int' THEN
                     create_table_sql := create_table_sql || 'INTEGER';
                 WHEN 'float', 'decimal' THEN
-                    create_table_sql := create_table_sql || 'DECIMAL';
+                    create_table_sql := create_table_sql || 'DECIMAL(10,2)';
                 WHEN 'boolean', 'bool' THEN
                     create_table_sql := create_table_sql || 'BOOLEAN';
                 WHEN 'json', 'object' THEN
@@ -381,6 +388,8 @@ BEGIN
     
     -- Execute the CREATE TABLE statement
     EXECUTE create_table_sql;
+    
+    RAISE NOTICE 'Created data table % with standard fields', p_table_name;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -407,14 +416,7 @@ RETURNS VOID AS $$
 DECLARE
     field_exists BOOLEAN;
 BEGIN
-    -- Check and add 'name' field if it doesn't exist
-    SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'name') INTO field_exists;
-    IF NOT field_exists THEN
-        INSERT INTO fields (collection_id, name, display_name, type, is_required, is_unique, sort_order, tenant_id)
-        VALUES (p_collection_id, 'name', 'Name', 'text', true, false, 1, p_tenant_id);
-    END IF;
-
-    -- Check and add 'display_name' field if it doesn't exist
+    -- Check and add 'display_name' field if it doesn't exist (optional, for admin UI)
     SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'display_name') INTO field_exists;
     IF NOT field_exists THEN
         INSERT INTO fields (collection_id, name, display_name, type, is_required, is_unique, sort_order, tenant_id)
@@ -448,6 +450,16 @@ BEGIN
         INSERT INTO fields (collection_id, name, display_name, type, is_required, sort_order, tenant_id)
         VALUES (p_collection_id, 'updated_by', 'Updated By', 'uuid', false, 103, p_tenant_id);
     END IF;
+    
+    -- Check and add 'tenant_id' field if it doesn't exist
+    SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'tenant_id') INTO field_exists;
+    IF NOT field_exists THEN
+        INSERT INTO fields (collection_id, name, display_name, type, is_required, sort_order, tenant_id)
+        VALUES (p_collection_id, 'tenant_id', 'Tenant ID', 'uuid', false, 104, p_tenant_id);
+    END IF;
+    
+    -- Note: We intentionally do NOT add a 'name' field by default
+    -- Collections should define their own meaningful fields
 END;
 $$ LANGUAGE plpgsql;
 
@@ -683,8 +695,55 @@ $$ LANGUAGE plpgsql;
 -- Run the admin unlimited access function
 SELECT ensure_admin_unlimited_access();
 
--- Manually create data tables for initial collections (since triggers don't run on bulk inserts)
+-- Manually create data tables for initial collections with proper standard fields
+-- Use the updated create_data_table function that includes created_by, updated_by, etc.
 SELECT create_data_table(id, name) FROM collections WHERE name IN ('blog_posts', 'customers');
+
+-- Create triggers for updated_at columns on data tables
+CREATE OR REPLACE FUNCTION create_data_table_triggers()
+RETURNS VOID AS $$
+DECLARE
+    collection_record RECORD;
+    tenant_schema TEXT;
+    trigger_sql TEXT;
+BEGIN
+    -- Loop through all non-system collections
+    FOR collection_record IN 
+        SELECT c.id, c.name, c.tenant_id, t.slug as tenant_schema
+        FROM collections c
+        JOIN tenants t ON c.tenant_id = t.id
+        WHERE c.is_system = false
+    LOOP
+        tenant_schema := collection_record.tenant_schema;
+        
+        -- Create trigger for updated_at
+        BEGIN
+            trigger_sql := 'CREATE TRIGGER update_data_' || collection_record.name || '_updated_at 
+                           BEFORE UPDATE ON "' || tenant_schema || '".data_' || collection_record.name || ' 
+                           FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()';
+            EXECUTE trigger_sql;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Could not create trigger for data_%: %', collection_record.name, SQLERRM;
+        END;
+        
+        RAISE NOTICE 'Added triggers to data_%', collection_record.name;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers for all data tables
+SELECT create_data_table_triggers();
+
+-- Fix the permissions to use the correct table names (data_customers, not customers)
+-- First, remove any duplicate permissions that might exist
+DELETE FROM permissions 
+WHERE table_name = 'data_customers' 
+AND role_id IN (
+    SELECT role_id FROM permissions WHERE table_name = 'customers'
+);
+
+-- Then update the table names
+UPDATE permissions SET table_name = 'data_customers' WHERE table_name = 'customers';
 
 -- Add comments for documentation
 COMMENT ON TABLE tenants IS 'Multi-tenant support - each tenant has isolated data';

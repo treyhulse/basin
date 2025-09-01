@@ -14,18 +14,18 @@ type Querier interface {
 	AddUserToTenant(ctx context.Context, arg AddUserToTenantParams) error
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	CreateCollection(ctx context.Context, arg CreateCollectionParams) (Collection, error)
-	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
 	CreateField(ctx context.Context, arg CreateFieldParams) (Field, error)
 	CreatePermission(ctx context.Context, arg CreatePermissionParams) (Permission, error)
 	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteAPIKey(ctx context.Context, id uuid.UUID) error
 	DeleteCollection(ctx context.Context, id uuid.UUID) error
-	DeleteCustomer(ctx context.Context, id uuid.UUID) error
 	DeleteField(ctx context.Context, id uuid.UUID) error
 	DeletePermission(ctx context.Context, id uuid.UUID) error
 	DeleteTenant(ctx context.Context, id uuid.UUID) error
 	DeleteUser(ctx context.Context, id uuid.UUID) error
+	// Note: Customer queries removedm - customers are now managed through dynamic collections
+	// The data_customers table is created automatically when the customers collection is created
 	// API Key Management Queries
 	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
 	GetAPIKeyByID(ctx context.Context, id uuid.UUID) (ApiKey, error)
@@ -35,8 +35,6 @@ type Querier interface {
 	GetCollection(ctx context.Context, id uuid.UUID) (Collection, error)
 	// Schema Management Queries
 	GetCollections(ctx context.Context) ([]Collection, error)
-	GetCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
-	GetCustomers(ctx context.Context) ([]Customer, error)
 	GetField(ctx context.Context, id uuid.UUID) (Field, error)
 	GetFields(ctx context.Context) ([]Field, error)
 	GetFieldsByCollection(ctx context.Context, collectionID uuid.NullUUID) ([]Field, error)
@@ -64,7 +62,6 @@ type Querier interface {
 	UpdateAPIKey(ctx context.Context, arg UpdateAPIKeyParams) (ApiKey, error)
 	UpdateAPIKeyLastUsed(ctx context.Context, id uuid.UUID) error
 	UpdateCollection(ctx context.Context, arg UpdateCollectionParams) (Collection, error)
-	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
 	UpdateField(ctx context.Context, arg UpdateFieldParams) (Field, error)
 	UpdatePermission(ctx context.Context, arg UpdatePermissionParams) (Permission, error)
 	UpdateTenant(ctx context.Context, arg UpdateTenantParams) (Tenant, error)

@@ -39,17 +39,6 @@ type Collection struct {
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
 }
 
-type Customer struct {
-	ID        uuid.UUID      `json:"id"`
-	FirstName string         `json:"first_name"`
-	LastName  string         `json:"last_name"`
-	Email     string         `json:"email"`
-	Phone     sql.NullString `json:"phone"`
-	Address   sql.NullString `json:"address"`
-	CreatedAt sql.NullTime   `json:"created_at"`
-	UpdatedAt sql.NullTime   `json:"updated_at"`
-}
-
 // Field definitions for dynamic collections
 type Field struct {
 	ID              uuid.UUID             `json:"id"`

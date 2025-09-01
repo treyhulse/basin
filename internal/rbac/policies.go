@@ -27,18 +27,38 @@ func (pc *PolicyChecker) CheckPermission(ctx context.Context, userID uuid.UUID, 
 		return false, nil, fmt.Errorf("failed to get user roles: %w", err)
 	}
 
-	// Get user's tenant ID
-	user, err := pc.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return false, nil, fmt.Errorf("failed to get user: %w", err)
+	// Check if user is admin (admin role bypasses all permission checks)
+	for _, role := range roles {
+		if role.Name == "admin" {
+			// Admin gets full access to everything
+			return true, []string{"*"}, nil
+		}
+	}
+
+	// Get user's current tenant context from the request context
+	// This should be set by the auth middleware
+	var currentTenantID uuid.UUID
+	if tenantID, ok := ctx.Value("tenant_id").(uuid.UUID); ok {
+		currentTenantID = tenantID
+	} else {
+		// Fallback to user's default tenant if no current context
+		user, err := pc.db.GetUserByID(ctx, userID)
+		if err != nil {
+			return false, nil, fmt.Errorf("failed to get user: %w", err)
+		}
+		if user.TenantID.Valid {
+			currentTenantID = user.TenantID.UUID
+		} else {
+			return false, nil, fmt.Errorf("no tenant context available")
+		}
 	}
 
 	// Check permissions for each role with tenant isolation
 	for _, role := range roles {
-		// Check permissions for this role and tenant
+		// Check permissions for this role and current tenant
 		permissions, err := pc.db.GetPermissionsByRoleAndTenant(ctx, sqlc.GetPermissionsByRoleAndTenantParams{
 			RoleID:   uuid.NullUUID{UUID: role.ID, Valid: true},
-			TenantID: user.TenantID,
+			TenantID: uuid.NullUUID{UUID: currentTenantID, Valid: true},
 		})
 		if err != nil {
 			continue // Skip this role if there's an error

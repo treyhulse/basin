@@ -1,0 +1,106 @@
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"go-rbac-api/internal/config"
+
+	_ "github.com/lib/pq"
+)
+
+func main() {
+	fmt.Println("=== Railway Database Migration ===")
+
+	// Force Railway mode for migrations
+	os.Setenv("DEPLOYMENT_MODE", "railway")
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	fmt.Printf("Environment: %s\n", cfg.DeploymentMode)
+	fmt.Printf("Database Host: %s\n", cfg.DBHost)
+	fmt.Printf("Database Port: %d\n", cfg.DBPort)
+	fmt.Printf("Database Name: %s\n", cfg.DBName)
+	fmt.Printf("SSL Mode: %s\n", cfg.DBSSLMode)
+
+	// Get connection string
+	connStr := cfg.GetDBConnString()
+	if connStr == "" {
+		log.Fatal("No valid connection string available")
+	}
+
+	fmt.Printf("\nTesting connection with: %s\n", maskPassword(connStr))
+
+	// Try to connect
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+
+	fmt.Println("✅ SUCCESS: Database connection successful!")
+
+	// Read and execute migration files
+	migrationDir := "migrations"
+	files, err := os.ReadDir(migrationDir)
+	if err != nil {
+		log.Fatalf("Failed to read migrations directory: %v", err)
+	}
+
+	// Sort files to ensure proper order
+	var sqlFiles []string
+	for _, file := range files {
+		if filepath.Ext(file.Name()) == ".sql" {
+			sqlFiles = append(sqlFiles, file.Name())
+		}
+	}
+
+	// Execute migrations in order
+	for _, fileName := range sqlFiles {
+		log.Printf("Executing migration: %s", fileName)
+
+		filePath := filepath.Join(migrationDir, fileName)
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			log.Fatalf("Failed to read migration file %s: %v", fileName, err)
+		}
+
+		// Execute the migration
+		_, err = db.Exec(string(content))
+		if err != nil {
+			log.Fatalf("Failed to execute migration %s: %v", fileName, err)
+		}
+
+		log.Printf("Successfully executed migration: %s", fileName)
+	}
+
+	log.Println("All migrations completed successfully")
+}
+
+// maskPassword hides the password in connection string for logging
+func maskPassword(connStr string) string {
+	if strings.Contains(connStr, "password=") {
+		parts := strings.Split(connStr, " ")
+		for i, part := range parts {
+			if strings.HasPrefix(part, "password=") {
+				parts[i] = "password=***"
+				break
+			}
+		}
+		return strings.Join(parts, " ")
+	}
+	return connStr
+}

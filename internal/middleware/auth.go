@@ -1,8 +1,12 @@
 package middleware
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"go-rbac-api/internal/config"
@@ -89,7 +93,7 @@ func GenerateToken(user sqlc.User, cfg *config.Config) (string, error) {
 	return token.SignedString([]byte(cfg.JWTSecret))
 }
 
-// AuthMiddleware creates a middleware that validates JWT tokens and provides auth context
+// AuthMiddleware creates a middleware that validates JWT tokens or API keys and provides auth context
 func AuthMiddleware(cfg *config.Config, db *db.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -105,83 +109,190 @@ func AuthMiddleware(cfg *config.Config, db *db.DB) gin.HandlerFunc {
 			tokenString = authHeader[7:]
 		}
 
-		// Parse and validate JWT token
-		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return []byte(cfg.JWTSecret), nil
-		})
+		// Try API key authentication first (if it looks like an API key)
+		if strings.HasPrefix(tokenString, "basin_") {
+			if authProvider, err := authenticateWithAPIKey(c, db, tokenString); err == nil {
+				// Store auth provider in context
+				c.Set("auth", authProvider)
+				c.Set("user_id", authProvider.UserID)
+				c.Set("email", authProvider.Email)
+				c.Set("tenant_id", authProvider.TenantID)
+				c.Set("tenant_slug", authProvider.TenantSlug)
+				c.Set("is_admin", authProvider.IsAdmin)
+				c.Set("auth_type", "api_key")
 
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			c.Abort()
-			return
-		}
-
-		if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-			// Get user roles and permissions
-			userRoles, err := db.Queries.GetUserRoles(c.Request.Context(), claims.UserID)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user roles"})
-				c.Abort()
+				c.Next()
 				return
 			}
+			// If API key auth fails, continue to JWT validation
+		}
 
-			// Check if user is admin
-			isAdmin := false
-			roles := make([]string, 0, len(userRoles))
-			for _, role := range userRoles {
-				roles = append(roles, role.Name)
-				if role.Name == "admin" {
-					isAdmin = true
-				}
-			}
-
-			// Get user permissions if tenant context exists
-			var permissions []string
-			if claims.TenantID != uuid.Nil {
-				userPermissions, err := db.Queries.GetPermissionsByUserAndTenant(c.Request.Context(), sqlc.GetPermissionsByUserAndTenantParams{
-					UserID:   claims.UserID,
-					TenantID: uuid.NullUUID{UUID: claims.TenantID, Valid: true},
-				})
-				if err == nil {
-					permissions = make([]string, 0, len(userPermissions))
-					for _, perm := range userPermissions {
-						permissions = append(permissions, fmt.Sprintf("%s:%s", perm.TableName, perm.Action))
-					}
-				}
-			}
-
-			// Create auth provider
-			authProvider := &AuthProvider{
-				UserID:      claims.UserID,
-				Email:       claims.Email,
-				TenantID:    claims.TenantID,
-				TenantSlug:  claims.TenantSlug,
-				IsAdmin:     isAdmin,
-				Roles:       roles,
-				Permissions: permissions,
-				SessionID:   claims.SessionID,
-				ExpiresAt:   time.Unix(int64(claims.ExpiresAt.Unix()), 0),
-			}
-
+		// Try JWT token authentication
+		if authProvider, err := authenticateWithJWT(c, cfg, db, tokenString); err == nil {
 			// Store auth provider in context
 			c.Set("auth", authProvider)
-			c.Set("user_id", claims.UserID)
-			c.Set("email", claims.Email)
-			c.Set("tenant_id", claims.TenantID)
-			c.Set("tenant_slug", claims.TenantSlug)
-			c.Set("is_admin", isAdmin)
+			c.Set("user_id", authProvider.UserID)
+			c.Set("email", authProvider.Email)
+			c.Set("tenant_id", authProvider.TenantID)
+			c.Set("tenant_slug", authProvider.TenantSlug)
+			c.Set("is_admin", authProvider.IsAdmin)
 			c.Set("auth_type", "jwt")
 
 			c.Next()
 			return
 		}
 
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token or API key"})
 		c.Abort()
 	}
+}
+
+// authenticateWithAPIKey validates an API key and returns an AuthProvider
+func authenticateWithAPIKey(c *gin.Context, db *db.DB, apiKey string) (*AuthProvider, error) {
+	// Hash the API key for database lookup
+	keyHash := hashAPIKey(apiKey)
+
+	// Look up the API key in the database
+	apiKeyRecord, err := db.Queries.GetAPIKeyByHash(c.Request.Context(), keyHash)
+	if err != nil {
+		return nil, fmt.Errorf("API key not found: %w", err)
+	}
+
+	// Check if API key is active
+	if !apiKeyRecord.IsActive.Bool {
+		return nil, fmt.Errorf("API key is inactive")
+	}
+
+	// Check if API key has expired
+	if apiKeyRecord.ExpiresAt.Valid && apiKeyRecord.ExpiresAt.Time.Before(time.Now()) {
+		return nil, fmt.Errorf("API key has expired")
+	}
+
+	// Get the user associated with this API key
+	user, err := db.Queries.GetUserByID(c.Request.Context(), apiKeyRecord.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// Check if user is active
+	if !user.IsActive.Bool {
+		return nil, fmt.Errorf("user account is disabled")
+	}
+
+	// Get user roles
+	userRoles, err := db.Queries.GetUserRoles(c.Request.Context(), apiKeyRecord.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	// Check if user is admin
+	isAdmin := false
+	roles := make([]string, 0, len(userRoles))
+	for _, role := range userRoles {
+		roles = append(roles, role.Name)
+		if role.Name == "admin" {
+			isAdmin = true
+		}
+	}
+
+	// Get user permissions (API keys don't have tenant context by default)
+	var permissions []string
+	// Note: API keys inherit the same permissions as the user, but without tenant context
+	// This means they can access system-wide data but may be limited by row-level security
+
+	// Create auth provider
+	authProvider := &AuthProvider{
+		UserID:      apiKeyRecord.UserID,
+		Email:       user.Email,
+		TenantID:    uuid.Nil, // API keys don't have tenant context by default
+		TenantSlug:  "",       // API keys don't have tenant context by default
+		IsAdmin:     isAdmin,
+		Roles:       roles,
+		Permissions: permissions,
+		SessionID:   apiKeyRecord.ID.String(),
+		ExpiresAt:   time.Now().Add(24 * time.Hour), // API keys don't expire in the same way as JWT
+	}
+
+	// Update last used timestamp
+	go func() {
+		if err := db.Queries.UpdateAPIKeyLastUsed(context.Background(), apiKeyRecord.ID); err != nil {
+			// Log error but don't fail the request
+			fmt.Printf("Failed to update API key last used: %v\n", err)
+		}
+	}()
+
+	return authProvider, nil
+}
+
+// authenticateWithJWT validates a JWT token and returns an AuthProvider
+func authenticateWithJWT(c *gin.Context, cfg *config.Config, db *db.DB, tokenString string) (*AuthProvider, error) {
+	// Parse and validate JWT token
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(cfg.JWTSecret), nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid JWT token: %w", err)
+	}
+
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		// Get user roles and permissions
+		userRoles, err := db.Queries.GetUserRoles(c.Request.Context(), claims.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user roles: %w", err)
+		}
+
+		// Check if user is admin
+		isAdmin := false
+		roles := make([]string, 0, len(userRoles))
+		for _, role := range userRoles {
+			roles = append(roles, role.Name)
+			if role.Name == "admin" {
+				isAdmin = true
+			}
+		}
+
+		// Get user permissions if tenant context exists
+		var permissions []string
+		if claims.TenantID != uuid.Nil {
+			userPermissions, err := db.Queries.GetPermissionsByUserAndTenant(c.Request.Context(), sqlc.GetPermissionsByUserAndTenantParams{
+				UserID:   claims.UserID,
+				TenantID: uuid.NullUUID{UUID: claims.TenantID, Valid: true},
+			})
+			if err == nil {
+				permissions = make([]string, 0, len(userPermissions))
+				for _, perm := range userPermissions {
+					permissions = append(permissions, fmt.Sprintf("%s:%s", perm.TableName, perm.Action))
+				}
+			}
+		}
+
+		// Create auth provider
+		authProvider := &AuthProvider{
+			UserID:      claims.UserID,
+			Email:       claims.Email,
+			TenantID:    claims.TenantID,
+			TenantSlug:  claims.TenantSlug,
+			IsAdmin:     isAdmin,
+			Roles:       roles,
+			Permissions: permissions,
+			SessionID:   claims.SessionID,
+			ExpiresAt:   time.Unix(int64(claims.ExpiresAt.Unix()), 0),
+		}
+
+		return authProvider, nil
+	}
+
+	return nil, fmt.Errorf("invalid JWT claims")
+}
+
+// hashAPIKey creates a SHA-256 hash of the API key for secure storage
+func hashAPIKey(apiKey string) string {
+	hash := sha256.Sum256([]byte(apiKey))
+	return hex.EncodeToString(hash[:])
 }
 
 // GetAuthProvider retrieves the auth provider from the context

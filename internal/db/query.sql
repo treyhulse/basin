@@ -20,20 +20,8 @@ SELECT * FROM permissions WHERE role_id = $1 AND table_name = $2 AND action = $3
 
 
 
--- name: GetCustomers :many
-SELECT * FROM customers;
-
--- name: GetCustomer :one
-SELECT * FROM customers WHERE id = $1;
-
--- name: CreateCustomer :one
-INSERT INTO customers (first_name, last_name, email, phone, address) VALUES ($1, $2, $3, $4, $5) RETURNING *;
-
--- name: UpdateCustomer :one
-UPDATE customers SET first_name = $2, last_name = $3, email = $4, phone = $5, address = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *;
-
--- name: DeleteCustomer :exec
-DELETE FROM customers WHERE id = $1;
+-- Note: Customer queries removedm - customers are now managed through dynamic collections
+-- The data_customers table is created automatically when the customers collection is created
 
 -- API Key Management Queries
 -- name: GetAPIKeyByHash :one

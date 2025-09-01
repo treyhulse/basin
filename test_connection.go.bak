@@ -1,0 +1,142 @@
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"strings"
+
+	"go-rbac-api/internal/config"
+
+	_ "github.com/lib/pq"
+)
+
+func main() {
+	fmt.Println("=== Database Connection Test ===")
+
+	// Load configuration to determine environment
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	fmt.Printf("Environment: %s\n", cfg.DeploymentMode)
+	fmt.Printf("Database Host: %s\n", cfg.DBHost)
+	fmt.Printf("Database Port: %d\n", cfg.DBPort)
+	fmt.Printf("Database Name: %s\n", cfg.DBName)
+	fmt.Printf("SSL Mode: %s\n", cfg.DBSSLMode)
+
+	// Get connection string
+	connStr := cfg.GetDBConnString()
+	if connStr == "" {
+		log.Fatalf("No valid connection string available")
+	}
+
+	fmt.Printf("\nTesting connection with: %s\n", maskPassword(connStr))
+
+	// Try to connect
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+
+	fmt.Println("✅ SUCCESS: Database connection successful!")
+
+	// Test basic query functionality
+	if err := testBasicQueries(db); err != nil {
+		log.Fatalf("Failed basic queries test: %v", err)
+	}
+
+	// Test table access if in Railway mode
+	if cfg.DeploymentMode == config.DeploymentModeRailway {
+		if err := testRailwayTables(db); err != nil {
+			log.Printf("⚠️  Warning: Railway table test failed: %v", err)
+		}
+	} else {
+		if err := testLocalTables(db); err != nil {
+			log.Printf("⚠️  Warning: Local table test failed: %v", err)
+		}
+	}
+
+	fmt.Println("\n🎉 All database tests completed successfully!")
+}
+
+// testBasicQueries tests basic database functionality
+func testBasicQueries(db *sql.DB) error {
+	fmt.Println("Testing basic database functionality...")
+
+	// Test simple query
+	var result string
+	err := db.QueryRow("SELECT version()").Scan(&result)
+	if err != nil {
+		return fmt.Errorf("failed to get PostgreSQL version: %w", err)
+	}
+
+	fmt.Printf("✅ PostgreSQL version: %s\n", result)
+	return nil
+}
+
+// testRailwayTables tests Railway-specific tables
+func testRailwayTables(db *sql.DB) error {
+	fmt.Println("Testing Railway database tables...")
+
+	// Test if we can list tables
+	rows, err := db.Query(`
+		SELECT table_name 
+		FROM information_schema.tables 
+		WHERE table_schema = 'public' 
+		ORDER BY table_name
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to query table list: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			return fmt.Errorf("failed to scan table name: %w", err)
+		}
+		tables = append(tables, tableName)
+	}
+
+	fmt.Printf("✅ Found %d tables: %v\n", len(tables), tables)
+	return nil
+}
+
+// testLocalTables tests local development tables
+func testLocalTables(db *sql.DB) error {
+	fmt.Println("Testing local development tables...")
+
+	// Test if users table exists and has data
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to query users table: %w", err)
+	}
+
+	fmt.Printf("✅ Found %d users in the database\n", count)
+	return nil
+}
+
+// maskPassword hides the password in connection string for logging
+func maskPassword(connStr string) string {
+	if strings.Contains(connStr, "password=") {
+		parts := strings.Split(connStr, " ")
+		for i, part := range parts {
+			if strings.HasPrefix(part, "password=") {
+				parts[i] = "password=***"
+				break
+			}
+		}
+		return strings.Join(parts, " ")
+	}
+	return connStr
+}

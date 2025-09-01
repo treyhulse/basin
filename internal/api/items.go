@@ -192,7 +192,13 @@ func (h *ItemsHandler) GetItems(c *gin.Context) {
 	}
 
 	// Check permissions
-	hasPermission, allowedFields, err := h.policyChecker.CheckPermission(c.Request.Context(), userID, tableName, "read")
+	// Get tenant context from the request
+	tenantID, _ := middleware.GetTenantID(c)
+
+	// Create a context with tenant information
+	ctxWithTenant := context.WithValue(c.Request.Context(), "tenant_id", tenantID)
+
+	hasPermission, allowedFields, err := h.policyChecker.CheckPermission(ctxWithTenant, userID, tableName, "read")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check permissions"})
 		return
@@ -258,7 +264,13 @@ func (h *ItemsHandler) GetItem(c *gin.Context) {
 	}
 
 	// Check permissions
-	hasPermission, allowedFields, err := h.policyChecker.CheckPermission(c.Request.Context(), userID, tableName, "read")
+	// Get tenant context from the request
+	tenantID, _ := middleware.GetTenantID(c)
+
+	// Create a context with tenant information
+	ctxWithTenant := context.WithValue(c.Request.Context(), "tenant_id", tenantID)
+
+	hasPermission, allowedFields, err := h.policyChecker.CheckPermission(ctxWithTenant, userID, tableName, "read")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check permissions"})
 		return
@@ -395,7 +407,13 @@ func (h *ItemsHandler) CreateItem(c *gin.Context) {
 	}
 
 	// Check permissions and filter data
-	hasPermission, allowedFields, err := h.policyChecker.CheckPermission(c.Request.Context(), userID, tableName, "create")
+	// Get tenant context from the request
+	tenantID, _ := middleware.GetTenantID(c)
+
+	// Create a context with tenant information
+	ctxWithTenant := context.WithValue(c.Request.Context(), "tenant_id", tenantID)
+
+	hasPermission, allowedFields, err := h.policyChecker.CheckPermission(ctxWithTenant, userID, tableName, "create")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check permissions"})
 		return
@@ -496,7 +514,13 @@ func (h *ItemsHandler) UpdateItem(c *gin.Context) {
 	}
 
 	// Check permissions and filter data
-	hasPermission, allowedFields, err := h.policyChecker.CheckPermission(c.Request.Context(), userID, tableName, "update")
+	// Get tenant context from the request
+	tenantID, _ := middleware.GetTenantID(c)
+
+	// Create a context with tenant information
+	ctxWithTenant := context.WithValue(c.Request.Context(), "tenant_id", tenantID)
+
+	hasPermission, allowedFields, err := h.policyChecker.CheckPermission(ctxWithTenant, userID, tableName, "update")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check permissions"})
 		return
@@ -596,7 +620,13 @@ func (h *ItemsHandler) DeleteItem(c *gin.Context) {
 		return
 	}
 
-	hasPermission, _, err := h.policyChecker.CheckPermission(c.Request.Context(), userID, tableName, "delete")
+	// Get tenant context from the request
+	tenantID, _ := middleware.GetTenantID(c)
+
+	// Create a context with tenant information
+	ctxWithTenant := context.WithValue(c.Request.Context(), "tenant_id", tenantID)
+
+	hasPermission, _, err := h.policyChecker.CheckPermission(ctxWithTenant, userID, tableName, "delete")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check permissions"})
 		return
