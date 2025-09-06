@@ -11,11 +11,14 @@ import (
 )
 
 type Querier interface {
+	AddUserRole(ctx context.Context, arg AddUserRoleParams) error
 	AddUserToTenant(ctx context.Context, arg AddUserToTenantParams) error
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	CreateCollection(ctx context.Context, arg CreateCollectionParams) (Collection, error)
 	CreateField(ctx context.Context, arg CreateFieldParams) (Field, error)
 	CreatePermission(ctx context.Context, arg CreatePermissionParams) (Permission, error)
+	// Role Management Queries
+	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteAPIKey(ctx context.Context, id uuid.UUID) error
@@ -33,6 +36,7 @@ type Querier interface {
 	// User-Tenant Relationship Queries
 	GetAllTenants(ctx context.Context) ([]Tenant, error)
 	GetCollection(ctx context.Context, id uuid.UUID) (Collection, error)
+	GetCollectionByNameAndTenant(ctx context.Context, arg GetCollectionByNameAndTenantParams) (Collection, error)
 	// Schema Management Queries
 	GetCollections(ctx context.Context) ([]Collection, error)
 	GetField(ctx context.Context, id uuid.UUID) (Field, error)
@@ -44,6 +48,8 @@ type Querier interface {
 	// Enhanced Permission Queries with Tenant Support
 	GetPermissionsByRoleAndTenant(ctx context.Context, arg GetPermissionsByRoleAndTenantParams) ([]Permission, error)
 	GetPermissionsByUserAndTenant(ctx context.Context, arg GetPermissionsByUserAndTenantParams) ([]Permission, error)
+	GetRoleByNameAndTenant(ctx context.Context, arg GetRoleByNameAndTenantParams) (Role, error)
+	GetRolesByTenant(ctx context.Context, tenantID uuid.NullUUID) ([]Role, error)
 	GetTenant(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
 	GetTenantBySlug(ctx context.Context, slug string) (Tenant, error)

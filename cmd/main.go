@@ -211,7 +211,7 @@ func main() {
 					"delete": "DELETE /items/:table/:id",
 				},
 			},
-			"sample_tables": []string{"blog_posts", "customers"},
+			"sample_tables": []string{"customers", "products", "orders"},
 			"default_admin": gin.H{
 				"email":    "admin@example.com",
 				"password": "password",

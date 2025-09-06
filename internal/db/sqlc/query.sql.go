@@ -14,6 +14,20 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+const addUserRole = `-- name: AddUserRole :exec
+INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT (user_id, role_id) DO NOTHING
+`
+
+type AddUserRoleParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	RoleID uuid.UUID `json:"role_id"`
+}
+
+func (q *Queries) AddUserRole(ctx context.Context, arg AddUserRoleParams) error {
+	_, err := q.db.ExecContext(ctx, addUserRole, arg.UserID, arg.RoleID)
+	return err
+}
+
 const addUserToTenant = `-- name: AddUserToTenant :exec
 INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) VALUES ($1, $2, $3, true)
 `
@@ -197,6 +211,38 @@ func (q *Queries) CreatePermission(ctx context.Context, arg CreatePermissionPara
 		&i.Action,
 		&i.FieldFilter,
 		pq.Array(&i.AllowedFields),
+		&i.TenantID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createRole = `-- name: CreateRole :one
+INSERT INTO roles (id, name, description, tenant_id) 
+VALUES ($1, $2, $3, $4) RETURNING id, name, description, tenant_id, created_at, updated_at
+`
+
+type CreateRoleParams struct {
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	TenantID    uuid.NullUUID  `json:"tenant_id"`
+}
+
+// Role Management Queries
+func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
+	row := q.db.QueryRowContext(ctx, createRole,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.TenantID,
+	)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
 		&i.TenantID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -456,6 +502,34 @@ SELECT id, name, display_name, description, icon, is_system, tenant_id, created_
 
 func (q *Queries) GetCollection(ctx context.Context, id uuid.UUID) (Collection, error) {
 	row := q.db.QueryRowContext(ctx, getCollection, id)
+	var i Collection
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Description,
+		&i.Icon,
+		&i.IsSystem,
+		&i.TenantID,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCollectionByNameAndTenant = `-- name: GetCollectionByNameAndTenant :one
+SELECT id, name, display_name, description, icon, is_system, tenant_id, created_by, updated_by, created_at, updated_at FROM collections WHERE name = $1 AND tenant_id = $2
+`
+
+type GetCollectionByNameAndTenantParams struct {
+	Name     string        `json:"name"`
+	TenantID uuid.NullUUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetCollectionByNameAndTenant(ctx context.Context, arg GetCollectionByNameAndTenantParams) (Collection, error) {
+	row := q.db.QueryRowContext(ctx, getCollectionByNameAndTenant, arg.Name, arg.TenantID)
 	var i Collection
 	err := row.Scan(
 		&i.ID,
@@ -818,6 +892,63 @@ func (q *Queries) GetPermissionsByUserAndTenant(ctx context.Context, arg GetPerm
 			&i.Action,
 			&i.FieldFilter,
 			pq.Array(&i.AllowedFields),
+			&i.TenantID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRoleByNameAndTenant = `-- name: GetRoleByNameAndTenant :one
+SELECT id, name, description, tenant_id, created_at, updated_at FROM roles WHERE name = $1 AND tenant_id = $2
+`
+
+type GetRoleByNameAndTenantParams struct {
+	Name     string        `json:"name"`
+	TenantID uuid.NullUUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetRoleByNameAndTenant(ctx context.Context, arg GetRoleByNameAndTenantParams) (Role, error) {
+	row := q.db.QueryRowContext(ctx, getRoleByNameAndTenant, arg.Name, arg.TenantID)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.TenantID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRolesByTenant = `-- name: GetRolesByTenant :many
+SELECT id, name, description, tenant_id, created_at, updated_at FROM roles WHERE tenant_id = $1 ORDER BY name
+`
+
+func (q *Queries) GetRolesByTenant(ctx context.Context, tenantID uuid.NullUUID) ([]Role, error) {
+	rows, err := q.db.QueryContext(ctx, getRolesByTenant, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Role{}
+	for rows.Next() {
+		var i Role
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
 			&i.TenantID,
 			&i.CreatedAt,
 			&i.UpdatedAt,

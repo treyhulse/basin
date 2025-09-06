@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"go-rbac-api/internal/config"
@@ -28,7 +30,7 @@ func NewTenantHandler(db *db.DB, cfg *config.Config) *TenantHandler {
 	}
 }
 
-// CreateTenant handles POST /tenants requests
+// CreateTenant handles POST /tenants requests with full initialization
 // @Summary      Create Tenant
 // @Tags         tenants
 // @Accept       json
@@ -52,8 +54,23 @@ func (h *TenantHandler) CreateTenant(c *gin.Context) {
 		return
 	}
 
+	// Get the creating user
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
 	// Generate UUID for new tenant
 	tenantID := uuid.New()
+
+	// Start a database transaction for atomicity
+	tx, err := h.db.DB.BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
 
 	// Create tenant in database
 	tenant, err := h.db.Queries.CreateTenant(c.Request.Context(), sqlc.CreateTenantParams{
@@ -68,9 +85,21 @@ func (h *TenantHandler) CreateTenant(c *gin.Context) {
 		return
 	}
 
+	// Initialize tenant with default roles, permissions, and collections
+	if err := h.initializeTenant(c.Request.Context(), tenantID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize tenant: " + err.Error()})
+		return
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
 	// Return success response
 	c.JSON(http.StatusCreated, models.TenantResponse{
-		Message: "Tenant created successfully",
+		Message: "Tenant created and initialized successfully",
 		Tenant: models.Tenant{
 			ID:        tenant.ID,
 			Name:      tenant.Name,
@@ -395,4 +424,270 @@ func (h *TenantHandler) JoinTenant(c *gin.Context) {
 	c.JSON(http.StatusOK, models.UserTenantResponse{
 		Message: "Successfully joined tenant",
 	})
+}
+
+// initializeTenant sets up a new tenant with default roles, permissions, and collections
+func (h *TenantHandler) initializeTenant(ctx context.Context, tenantID uuid.UUID, creatorUserID uuid.UUID) error {
+	// 1. Create default roles
+	roles, err := h.createDefaultRoles(ctx, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to create default roles: %w", err)
+	}
+
+	// 2. Add creator as admin to the tenant
+	adminRole := roles["admin"]
+	if err := h.db.Queries.AddUserToTenant(ctx, sqlc.AddUserToTenantParams{
+		UserID:   creatorUserID,
+		TenantID: tenantID,
+		RoleID:   uuid.NullUUID{UUID: adminRole.ID, Valid: true},
+	}); err != nil {
+		return fmt.Errorf("failed to add creator to tenant: %w", err)
+	}
+
+	// 3. Add admin role to user_roles table
+	if err := h.db.Queries.AddUserRole(ctx, sqlc.AddUserRoleParams{
+		UserID: creatorUserID,
+		RoleID: adminRole.ID,
+	}); err != nil {
+		return fmt.Errorf("failed to assign admin role to user: %w", err)
+	}
+
+	// 4. Create default permissions for system tables
+	if err := h.createDefaultPermissions(ctx, tenantID, roles); err != nil {
+		return fmt.Errorf("failed to create default permissions: %w", err)
+	}
+
+	// 5. Create default collections
+	if err := h.createDefaultCollections(ctx, tenantID, creatorUserID); err != nil {
+		return fmt.Errorf("failed to create default collections: %w", err)
+	}
+
+	return nil
+}
+
+// createDefaultRoles creates the standard roles for a new tenant
+func (h *TenantHandler) createDefaultRoles(ctx context.Context, tenantID uuid.UUID) (map[string]sqlc.Role, error) {
+	roles := make(map[string]sqlc.Role)
+
+	defaultRoles := []struct {
+		name        string
+		description string
+	}{
+		{"admin", "Full system access and management"},
+		{"manager", "Can manage users, content, and settings"},
+		{"editor", "Can create and edit content"},
+		{"viewer", "Can view content and data"},
+	}
+
+	for _, roleData := range defaultRoles {
+		roleID := uuid.New()
+		role, err := h.db.Queries.CreateRole(ctx, sqlc.CreateRoleParams{
+			ID:          roleID,
+			Name:        roleData.name,
+			Description: sql.NullString{String: roleData.description, Valid: true},
+			TenantID:    uuid.NullUUID{UUID: tenantID, Valid: true},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create role %s: %w", roleData.name, err)
+		}
+		roles[roleData.name] = role
+	}
+
+	return roles, nil
+}
+
+// createDefaultPermissions creates standard permissions for system tables
+func (h *TenantHandler) createDefaultPermissions(ctx context.Context, tenantID uuid.UUID, roles map[string]sqlc.Role) error {
+	// System tables that need permissions
+	systemTables := []string{
+		"users", "roles", "permissions", "collections", "fields",
+		"tenants", "api_keys", "user_tenants", "user_roles",
+	}
+
+	// Define role permissions
+	rolePermissions := map[string][]string{
+		"admin":   {"create", "read", "update", "delete"},
+		"manager": {"create", "read", "update"},
+		"editor":  {"create", "read", "update"},
+		"viewer":  {"read"},
+	}
+
+	for roleName, role := range roles {
+		permissions, exists := rolePermissions[roleName]
+		if !exists {
+			continue
+		}
+
+		for _, table := range systemTables {
+			for _, action := range permissions {
+				permissionID := uuid.New()
+				_, err := h.db.Queries.CreatePermission(ctx, sqlc.CreatePermissionParams{
+					ID:            permissionID,
+					RoleID:        uuid.NullUUID{UUID: role.ID, Valid: true},
+					TableName:     table,
+					Action:        action,
+					FieldFilter:   pqtype.NullRawMessage{Valid: false},
+					AllowedFields: []string{"*"}, // Full field access for system tables
+					TenantID:      uuid.NullUUID{UUID: tenantID, Valid: true},
+				})
+				if err != nil {
+					return fmt.Errorf("failed to create permission %s:%s for role %s: %w",
+						table, action, roleName, err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// createDefaultCollections creates some useful default collections for the tenant
+func (h *TenantHandler) createDefaultCollections(ctx context.Context, tenantID uuid.UUID, creatorUserID uuid.UUID) error {
+	defaultCollections := []struct {
+		name        string
+		displayName string
+		description string
+		icon        string
+	}{
+		{
+			name:        "customers",
+			displayName: "Customers",
+			description: "Customer information and contact details",
+			icon:        "👥",
+		},
+		{
+			name:        "products",
+			displayName: "Products",
+			description: "Product catalog and inventory",
+			icon:        "📦",
+		},
+		{
+			name:        "orders",
+			displayName: "Orders",
+			description: "Customer orders and transactions",
+			icon:        "📋",
+		},
+	}
+
+	for _, collectionData := range defaultCollections {
+		collectionID := uuid.New()
+		_, err := h.db.Queries.CreateCollection(ctx, sqlc.CreateCollectionParams{
+			ID:          collectionID,
+			Name:        collectionData.displayName, // Display name (e.g., "Customers")
+			Slug:        collectionData.name,        // URL-friendly slug (e.g., "customers")
+			DisplayName: sql.NullString{String: collectionData.displayName, Valid: true},
+			Description: sql.NullString{String: collectionData.description, Valid: true},
+			Icon:        sql.NullString{String: collectionData.icon, Valid: true},
+			IsSystem:    sql.NullBool{Bool: false, Valid: true},
+			TenantID:    uuid.NullUUID{UUID: tenantID, Valid: true},
+			CreatedBy:   uuid.NullUUID{UUID: creatorUserID, Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create collection %s: %w", collectionData.name, err)
+		}
+
+		// Add default fields for each collection
+		if err := h.createDefaultFields(ctx, collectionID, collectionData.name, tenantID); err != nil {
+			return fmt.Errorf("failed to create fields for collection %s: %w", collectionData.name, err)
+		}
+	}
+
+	return nil
+}
+
+// createDefaultFields creates standard fields for a collection
+func (h *TenantHandler) createDefaultFields(ctx context.Context, collectionID uuid.UUID, collectionName string, tenantID uuid.UUID) error {
+	// Define default fields based on collection type
+	var defaultFields []struct {
+		name        string
+		displayName string
+		type_       string
+		isRequired  bool
+		isPrimary   bool
+		sortOrder   int32
+	}
+
+	switch collectionName {
+	case "customers":
+		defaultFields = []struct {
+			name        string
+			displayName string
+			type_       string
+			isRequired  bool
+			isPrimary   bool
+			sortOrder   int32
+		}{
+			{"name", "Name", "string", true, true, 1},
+			{"email", "Email", "string", true, false, 2},
+			{"phone", "Phone", "string", false, false, 3},
+			{"address", "Address", "text", false, false, 4},
+		}
+	case "products":
+		defaultFields = []struct {
+			name        string
+			displayName string
+			type_       string
+			isRequired  bool
+			isPrimary   bool
+			sortOrder   int32
+		}{
+			{"name", "Product Name", "string", true, true, 1},
+			{"description", "Description", "text", false, false, 2},
+			{"price", "Price", "decimal", true, false, 3},
+			{"sku", "SKU", "string", true, false, 4},
+			{"stock", "Stock Quantity", "integer", false, false, 5},
+		}
+	case "orders":
+		defaultFields = []struct {
+			name        string
+			displayName string
+			type_       string
+			isRequired  bool
+			isPrimary   bool
+			sortOrder   int32
+		}{
+			{"order_number", "Order Number", "string", true, true, 1},
+			{"customer_id", "Customer", "uuid", true, false, 2},
+			{"total_amount", "Total Amount", "decimal", true, false, 3},
+			{"status", "Status", "string", true, false, 4},
+			{"order_date", "Order Date", "datetime", true, false, 5},
+		}
+	default:
+		// Generic fields for any collection
+		defaultFields = []struct {
+			name        string
+			displayName string
+			type_       string
+			isRequired  bool
+			isPrimary   bool
+			sortOrder   int32
+		}{
+			{"name", "Name", "string", true, true, 1},
+			{"description", "Description", "text", false, false, 2},
+		}
+	}
+
+	for _, fieldData := range defaultFields {
+		fieldID := uuid.New()
+		_, err := h.db.Queries.CreateField(ctx, sqlc.CreateFieldParams{
+			ID:              fieldID,
+			CollectionID:    uuid.NullUUID{UUID: collectionID, Valid: true},
+			Name:            fieldData.name,
+			DisplayName:     sql.NullString{String: fieldData.displayName, Valid: true},
+			Type:            fieldData.type_,
+			IsPrimary:       sql.NullBool{Bool: fieldData.isPrimary, Valid: true},
+			IsRequired:      sql.NullBool{Bool: fieldData.isRequired, Valid: true},
+			IsUnique:        sql.NullBool{Bool: false, Valid: true},
+			DefaultValue:    sql.NullString{Valid: false},
+			ValidationRules: pqtype.NullRawMessage{Valid: false},
+			RelationConfig:  pqtype.NullRawMessage{Valid: false},
+			SortOrder:       sql.NullInt32{Int32: fieldData.sortOrder, Valid: true},
+			TenantID:        uuid.NullUUID{UUID: tenantID, Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create field %s: %w", fieldData.name, err)
+		}
+	}
+
+	return nil
 }

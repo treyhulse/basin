@@ -52,8 +52,11 @@ SELECT * FROM collections ORDER BY name;
 -- name: GetCollection :one
 SELECT * FROM collections WHERE id = $1;
 
+-- name: GetCollectionByNameAndTenant :one
+SELECT * FROM collections WHERE slug = $1 AND tenant_id = $2;
+
 -- name: CreateCollection :one
-INSERT INTO collections (id, name, display_name, description, icon, is_system, tenant_id, created_by) 
+INSERT INTO collections (id, name, slug, display_name, description, icon, is_system, tenant_id, created_by) 
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: UpdateCollection :one
@@ -173,4 +176,18 @@ ORDER BY ut.created_at LIMIT 1;
 SELECT t.* FROM tenants t 
 JOIN user_tenants ut ON t.id = ut.tenant_id 
 WHERE ut.user_id = $1 AND ut.is_active = true 
-ORDER BY ut.created_at; 
+ORDER BY ut.created_at;
+
+-- Role Management Queries
+-- name: CreateRole :one
+INSERT INTO roles (id, name, description, tenant_id) 
+VALUES ($1, $2, $3, $4) RETURNING *;
+
+-- name: GetRolesByTenant :many
+SELECT * FROM roles WHERE tenant_id = $1 ORDER BY name;
+
+-- name: GetRoleByNameAndTenant :one
+SELECT * FROM roles WHERE name = $1 AND tenant_id = $2;
+
+-- name: AddUserRole :exec
+INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT (user_id, role_id) DO NOTHING; 

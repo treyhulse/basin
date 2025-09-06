@@ -133,11 +133,10 @@ make restart  # Restart everything
 ### **Dynamic Data Tables**
 - **`data_[collection_name]`** - Automatically created for each collection
 
-### **Sample Business Tables**
-- **`products`** - Product catalog
+### **Sample Business Tables (Created Per Tenant)**
 - **`customers`** - Customer information
+- **`products`** - Product catalog  
 - **`orders`** - Order management
-- **`order_items`** - Order line items
 
 ---
 

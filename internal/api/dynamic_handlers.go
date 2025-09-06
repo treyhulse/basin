@@ -58,28 +58,32 @@ func NewDynamicHandlers(db *db.DB, utils *ItemsUtils) *DynamicHandlers {
 }
 
 // CreateDynamicItem creates a new item in a dynamic data table
-func (d *DynamicHandlers) CreateDynamicItem(ctx context.Context, userID uuid.UUID, tableName string, data map[string]interface{}) error {
-	// Get tenant schema
+func (d *DynamicHandlers) CreateDynamicItem(ctx context.Context, userID uuid.UUID, collectionSlug string, data map[string]interface{}) error {
+	// Get tenant ID
 	userTenantID, err := d.utils.GetUserTenantID(ctx, userID)
 	if err != nil {
 		return err
 	}
 
-	tenantSchema, err := d.utils.GetTenantSchema(ctx, userTenantID)
+	// Get the actual data table name from the collections table
+	var dataTableName string
+	query := `SELECT data_table_name FROM collections WHERE slug = $1 AND tenant_id = $2`
+	err = d.db.QueryRowContext(ctx, query, collectionSlug, userTenantID).Scan(&dataTableName)
 	if err != nil {
-		return err
+		return fmt.Errorf("collection not found: %w", err)
 	}
 
-	dataTableName := fmt.Sprintf(`"%s".data_%s`, tenantSchema, tableName)
+	// Use the data schema
+	fullTableName := fmt.Sprintf(`data.%s`, dataTableName)
 
 	// Check if table exists
-	tableExists, err := d.utils.TableExists(dataTableName)
+	tableExists, err := d.utils.TableExists(fullTableName)
 	if err != nil {
 		return err
 	}
 
 	if !tableExists {
-		return fmt.Errorf("table %s does not exist", dataTableName)
+		return fmt.Errorf("table %s does not exist", fullTableName)
 	}
 
 	// Build INSERT query dynamically
@@ -104,7 +108,7 @@ func (d *DynamicHandlers) CreateDynamicItem(ctx context.Context, userID uuid.UUI
 
 	query := fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES (%s)",
-		dataTableName,
+		fullTableName,
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "),
 	)

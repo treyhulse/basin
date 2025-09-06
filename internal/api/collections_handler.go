@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"go-rbac-api/internal/db"
+	sqlc "go-rbac-api/internal/db/sqlc"
 
 	"github.com/google/uuid"
 )
@@ -85,28 +86,28 @@ func NewCollectionsHandler(db *db.DB, utils *ItemsUtils, dynamicHandlers *Dynami
 }
 
 // GetCollection retrieves a collection definition by name
-func (ch *CollectionsHandler) GetCollection(ctx context.Context, tenantID uuid.UUID, collectionName string) (*Collection, error) {
-	query := `
-		SELECT id, name, description, tenant_id, created_at, updated_at
-		FROM collections 
-		WHERE name = $1 AND tenant_id = $2
-	`
-
-	var collection Collection
-	err := ch.db.QueryRowContext(ctx, query, collectionName, tenantID).Scan(
-		&collection.ID,
-		&collection.Name,
-		&collection.Description,
-		&collection.TenantID,
-		&collection.CreatedAt,
-		&collection.UpdatedAt,
-	)
+func (ch *CollectionsHandler) GetCollection(ctx context.Context, tenantID uuid.UUID, collectionSlug string) (*Collection, error) {
+	// Use SQLC generated query for better type safety
+	dbCollection, err := ch.db.Queries.GetCollectionByNameAndTenant(ctx, sqlc.GetCollectionByNameAndTenantParams{
+		Name:     collectionSlug, // This now refers to the slug field
+		TenantID: uuid.NullUUID{UUID: tenantID, Valid: true},
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("collection not found: %w", err)
 	}
 
-	return &collection, nil
+	// Convert SQLC model to our Collection struct
+	collection := &Collection{
+		ID:          dbCollection.ID,
+		Name:        dbCollection.Name,
+		Description: dbCollection.Description.String,
+		TenantID:    dbCollection.TenantID.UUID,
+		CreatedAt:   dbCollection.CreatedAt.Time,
+		UpdatedAt:   dbCollection.UpdatedAt.Time,
+	}
+
+	return collection, nil
 }
 
 // GetCollectionFields retrieves all fields for a collection

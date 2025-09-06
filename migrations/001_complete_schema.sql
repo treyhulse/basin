@@ -1,12 +1,13 @@
 -- Complete Basin API Schema Migration
--- This single migration file creates the complete database schema
--- Includes: users, roles, permissions, collections, fields, tenants, and API keys
+-- This migration creates the complete database schema with multi-schema architecture
+-- Core tables in public schema, data tables in 'data' schema with tenant-specific naming
+-- Data tables named: collectionName-data-tenantId (e.g., customers-data-tenant123)
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create tenant schemas for data tables
-CREATE SCHEMA IF NOT EXISTS main;
+-- Create data schema for tenant-specific data tables
+CREATE SCHEMA IF NOT EXISTS data;
 
 -- Create tenants table first (referenced by other tables)
 CREATE TABLE tenants (
@@ -75,10 +76,12 @@ CREATE TABLE permissions (
     UNIQUE(role_id, table_name, action)
 );
 
--- Create collections table
+-- Create collections table with tenant isolation and data table reference
 CREATE TABLE collections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL, -- Display name (e.g., "Customers", "Products")
+    slug VARCHAR(255) NOT NULL, -- URL-friendly name (e.g., "customers", "products")
+    data_table_name VARCHAR(255) NOT NULL, -- Actual table name in data schema (e.g., "customers-data-tenant123")
     display_name VARCHAR(255),
     description TEXT,
     icon VARCHAR(100),
@@ -87,7 +90,11 @@ CREATE TABLE collections (
     created_by UUID REFERENCES users(id),
     updated_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- Ensure collection names are unique within each tenant
+    UNIQUE(tenant_id, slug),
+    -- Ensure data table names are globally unique
+    UNIQUE(data_table_name)
 );
 
 -- Create fields table
@@ -102,233 +109,64 @@ CREATE TABLE fields (
     is_unique BOOLEAN DEFAULT false,
     default_value TEXT,
     validation_rules JSONB,
+    relation_config JSONB, -- {"related_collection": "collection_name", "field": "field_name"}
     sort_order INTEGER DEFAULT 0,
-    relation_config JSONB, -- {"related_collection": "table_name", "relation_type": "one_to_many"}
     tenant_id UUID REFERENCES tenants(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(collection_id, name)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create API keys table
 CREATE TABLE api_keys (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    key_hash VARCHAR(255) NOT NULL UNIQUE,
+    key_hash VARCHAR(255) NOT NULL,
+    permissions JSONB NOT NULL, -- {"tables": ["table1", "table2"], "actions": ["read", "write"]}
+    expires_at TIMESTAMP WITH TIME ZONE,
     is_active BOOLEAN DEFAULT true,
-    expires_at TIMESTAMP,
-    last_used_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    tenant_id UUID REFERENCES tenants(id),
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Note: Sample tables are no longer created here
--- Dynamic collections will create their own data tables automatically
-
--- Create indexes for performance
+-- Create indexes for better performance
 CREATE INDEX idx_users_tenant_id ON users(tenant_id);
+CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_roles_tenant_id ON roles(tenant_id);
 CREATE INDEX idx_permissions_tenant_id ON permissions(tenant_id);
 CREATE INDEX idx_collections_tenant_id ON collections(tenant_id);
+CREATE INDEX idx_collections_slug ON collections(tenant_id, slug);
 CREATE INDEX idx_fields_tenant_id ON fields(tenant_id);
-CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
-CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
-CREATE INDEX idx_roles_name_tenant_unique ON roles(name, tenant_id);
-CREATE INDEX idx_user_tenants_user_id ON user_tenants(user_id);
-CREATE INDEX idx_user_tenants_tenant_id ON user_tenants(tenant_id);
+CREATE INDEX idx_fields_collection_id ON fields(collection_id);
+CREATE INDEX idx_api_keys_tenant_id ON api_keys(tenant_id);
 
--- Create default tenant
-INSERT INTO tenants (id, name, slug, domain) VALUES 
-    (uuid_generate_v4(), 'Main Tenant', 'main', 'localhost');
-
--- Insert default roles
-INSERT INTO roles (name, description, tenant_id) VALUES
-    ('admin', 'Full system access', (SELECT id FROM tenants WHERE slug = 'main')),
-    ('manager', 'Can manage products and view orders', (SELECT id FROM tenants WHERE slug = 'main')),
-    ('sales', 'Can view products and create orders', (SELECT id FROM tenants WHERE slug = 'main')),
-    ('customer', 'Can view products and own orders', (SELECT id FROM tenants WHERE slug = 'main'));
-
--- Insert default users (password: password)
-INSERT INTO users (email, password_hash, first_name, last_name, tenant_id) VALUES
-    ('admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'User', (SELECT id FROM tenants WHERE slug = 'main')),
-    ('manager@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Manager', 'User', (SELECT id FROM tenants WHERE slug = 'main'));
-
--- Assign roles to users
-INSERT INTO user_roles (user_id, role_id) 
-SELECT u.id, r.id 
-FROM users u, roles r 
-WHERE u.email = 'admin@example.com' AND r.name = 'admin';
-
-INSERT INTO user_roles (user_id, role_id) 
-SELECT u.id, r.id 
-FROM users u, roles r 
-WHERE u.email = 'manager@example.com' AND r.name = 'manager';
-
--- Ensure admin user has admin role (this should always work)
-INSERT INTO user_roles (user_id, role_id) 
-SELECT u.id, r.id 
-FROM users u, roles r 
-WHERE u.email = 'admin@example.com' AND r.name = 'admin'
-ON CONFLICT (user_id, role_id) DO NOTHING;
-
--- Assign users to tenants (many-to-many relationship)
-INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) 
-SELECT u.id, t.id, r.id, true
-FROM users u, tenants t, roles r 
-WHERE u.email = 'admin@example.com' AND t.slug = 'main' AND r.name = 'admin';
-
-INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) 
-SELECT u.id, t.id, r.id, true
-FROM users u, tenants t, roles r 
-WHERE u.email = 'manager@example.com' AND t.slug = 'main' AND r.name = 'manager';
-
--- Ensure admin user is properly assigned to main tenant
-INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active) 
-SELECT u.id, t.id, r.id, true
-FROM users u, tenants t, roles r 
-WHERE u.email = 'admin@example.com' AND t.slug = 'main' AND r.name = 'admin'
-ON CONFLICT (user_id, tenant_id) DO NOTHING;
-
--- Insert sample permissions for admin role
-INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) VALUES
-    -- Admin permissions for dynamic data tables (all tables, all actions, all fields)
-    ((SELECT id FROM roles WHERE name = 'admin'), 'data_customers', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'data_customers', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'data_customers', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'data_customers', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    
-    -- Admin can manage system tables
-    ((SELECT id FROM roles WHERE name = 'admin'), 'users', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'users', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'users', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'users', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    
-    ((SELECT id FROM roles WHERE name = 'admin'), 'roles', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'roles', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'roles', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'roles', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    
-    ((SELECT id FROM roles WHERE name = 'admin'), 'permissions', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'permissions', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'permissions', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'permissions', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    
-    ((SELECT id FROM roles WHERE name = 'admin'), 'collections', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'collections', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'collections', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'collections', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    
-    ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'fields', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    
-    ((SELECT id FROM roles WHERE name = 'admin'), 'tenants', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'tenants', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'tenants', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'tenants', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    
-    ((SELECT id FROM roles WHERE name = 'admin'), 'api_keys', 'create', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'api_keys', 'read', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'api_keys', 'update', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'admin'), 'api_keys', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main'));
-
--- Insert manager permissions
-INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) VALUES
-    
-    -- Manager can manage their own API keys
-    ((SELECT id FROM roles WHERE name = 'manager'), 'api_keys', 'create', ARRAY['name', 'expires_at'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'manager'), 'api_keys', 'read', ARRAY['id', 'name', 'is_active', 'expires_at', 'last_used_at', 'created_at'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'manager'), 'api_keys', 'update', ARRAY['name', 'is_active'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'manager'), 'api_keys', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main'));
-
--- Insert sales permissions
-INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) VALUES
-    
-    -- Sales can manage their own API keys
-    ((SELECT id FROM roles WHERE name = 'sales'), 'api_keys', 'create', ARRAY['name', 'expires_at'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'sales'), 'api_keys', 'read', ARRAY['id', 'name', 'is_active', 'expires_at', 'last_used_at', 'created_at'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'sales'), 'api_keys', 'update', ARRAY['name', 'is_active'], (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM roles WHERE name = 'sales'), 'api_keys', 'delete', ARRAY['*'], (SELECT id FROM tenants WHERE slug = 'main'));
-
--- Note: Customer permissions and data are now managed dynamically through the collections system
--- The data_customers table will be created automatically when the customers collection is created
-
--- Insert sample API keys for testing
-INSERT INTO api_keys (user_id, name, key_hash, expires_at) VALUES
-    ((SELECT id FROM users WHERE email = 'admin@example.com'), 'Admin API Key', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', NULL),
-    ((SELECT id FROM users WHERE email = 'manager@example.com'), 'Manager API Key', '$2a$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm', NULL);
-
--- Create sample collections for demonstration
-INSERT INTO collections (name, display_name, description, icon, is_system, tenant_id, created_by) VALUES
-    ('blog_posts', 'Blog Posts', 'Blog post articles with title, content, and author', '📝', false, (SELECT id FROM tenants WHERE slug = 'main'), (SELECT id FROM users WHERE email = 'admin@example.com')),
-    ('customers', 'Customers', 'Customer information with contact details', '👥', false, (SELECT id FROM tenants WHERE slug = 'main'), (SELECT id FROM users WHERE email = 'admin@example.com'));
-
--- Create sample fields for blog_posts collection
-INSERT INTO fields (collection_id, name, display_name, type, is_primary, is_required, is_unique, sort_order, tenant_id) VALUES
-    ((SELECT id FROM collections WHERE name = 'blog_posts'), 'title', 'Title', 'text', true, true, false, 1, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'blog_posts'), 'content', 'Content', 'text', false, true, false, 2, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'blog_posts'), 'author', 'Author', 'text', false, true, false, 3, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'blog_posts'), 'published_at', 'Published At', 'datetime', false, false, false, 4, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'blog_posts'), 'tags', 'Tags', 'json', false, false, false, 5, (SELECT id FROM tenants WHERE slug = 'main'));
-
--- Create sample fields for customers collection
-INSERT INTO fields (collection_id, name, display_name, type, is_primary, is_required, is_unique, sort_order, tenant_id) VALUES
-    ((SELECT id FROM collections WHERE name = 'customers'), 'first_name', 'First Name', 'text', false, true, false, 1, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'customers'), 'last_name', 'Last Name', 'text', false, true, false, 2, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'customers'), 'email', 'Email', 'text', true, true, true, 3, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'customers'), 'phone', 'Phone', 'text', false, false, false, 4, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'customers'), 'address', 'Address', 'text', false, false, false, 5, (SELECT id FROM tenants WHERE slug = 'main')),
-    ((SELECT id FROM collections WHERE name = 'customers'), 'date_of_birth', 'Date of Birth', 'datetime', false, false, false, 6, (SELECT id FROM tenants WHERE slug = 'main'));
-
--- Create trigger function to update updated_at columns
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+-- Create function to generate unique data table name
+CREATE OR REPLACE FUNCTION generate_data_table_name(p_collection_slug TEXT, p_tenant_id UUID)
+RETURNS TEXT AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Create triggers for updated_at columns
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_roles_updated_at BEFORE UPDATE ON roles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_permissions_updated_at BEFORE UPDATE ON permissions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_collections_updated_at BEFORE UPDATE ON collections FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_fields_updated_at BEFORE UPDATE ON fields FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_tenants_updated_at BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_api_keys_updated_at BEFORE UPDATE ON api_keys FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Create function to set user context for RLS (Row Level Security)
-CREATE OR REPLACE FUNCTION set_user_context(user_id UUID)
-RETURNS VOID AS $$
-BEGIN
-    PERFORM set_config('app.current_user_id', user_id::text, false);
+    -- Format: collectionSlug-data-tenantId (e.g., customers-data-6e68062f-c4c6-42df-9e01-e2d1081664f4)
+    RETURN p_collection_slug || '-data-' || p_tenant_id;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create function to create data tables for collections
-CREATE OR REPLACE FUNCTION create_data_table(p_collection_id UUID, p_table_name TEXT)
-RETURNS VOID AS $$
+-- Create function to create data tables in data schema with tenant-specific naming
+CREATE OR REPLACE FUNCTION create_data_table(p_collection_id UUID, p_collection_slug TEXT, p_tenant_id UUID)
+RETURNS TEXT AS $$
 DECLARE
     create_table_sql TEXT;
     field_record RECORD;
-    tenant_schema TEXT;
     has_fields BOOLEAN;
-    tenant_id UUID;
+    data_table_name TEXT;
 BEGIN
-    -- Get the tenant schema and ID for this collection
-    SELECT t.slug, c.tenant_id INTO tenant_schema, tenant_id
-    FROM tenants t 
-    JOIN collections c ON t.id = c.tenant_id 
-    WHERE c.id = p_collection_id;
+    -- Generate unique data table name
+    data_table_name := generate_data_table_name(p_collection_slug, p_tenant_id);
     
     -- Check if there are any fields for this collection
     SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id) INTO has_fields;
     
-    -- Start building the CREATE TABLE statement
-    create_table_sql := 'CREATE TABLE IF NOT EXISTS "' || tenant_schema || '".data_' || p_table_name || ' (';
+    -- Start building the CREATE TABLE statement in data schema
+    create_table_sql := 'CREATE TABLE IF NOT EXISTS data.' || data_table_name || ' (';
     create_table_sql := create_table_sql || 'id UUID PRIMARY KEY DEFAULT uuid_generate_v4()';
     
     -- Add standard fields that every collection should have
@@ -336,7 +174,7 @@ BEGIN
     create_table_sql := create_table_sql || ', updated_by UUID';
     create_table_sql := create_table_sql || ', created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()';
     create_table_sql := create_table_sql || ', updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()';
-    create_table_sql := create_table_sql || ', tenant_id UUID DEFAULT ''' || tenant_id || '''';
+    create_table_sql := create_table_sql || ', tenant_id UUID DEFAULT ''' || p_tenant_id || '''';
     
     -- Add fields from the fields table (if any exist)
     IF has_fields THEN
@@ -357,402 +195,189 @@ BEGIN
                     create_table_sql := create_table_sql || 'TEXT';
                 WHEN 'integer', 'int' THEN
                     create_table_sql := create_table_sql || 'INTEGER';
-                WHEN 'float', 'decimal' THEN
+                WHEN 'decimal', 'float' THEN
                     create_table_sql := create_table_sql || 'DECIMAL(10,2)';
                 WHEN 'boolean', 'bool' THEN
                     create_table_sql := create_table_sql || 'BOOLEAN';
-                WHEN 'json', 'object' THEN
-                    create_table_sql := create_table_sql || 'JSONB';
-                WHEN 'date', 'datetime' THEN
+                WHEN 'datetime', 'timestamp' THEN
                     create_table_sql := create_table_sql || 'TIMESTAMP WITH TIME ZONE';
+                WHEN 'json' THEN
+                    create_table_sql := create_table_sql || 'JSONB';
                 WHEN 'uuid' THEN
                     create_table_sql := create_table_sql || 'UUID';
+                WHEN 'relation' THEN
+                    -- Handle relation fields - reference the related table
+                    IF field_record.relation_config IS NOT NULL THEN
+                        create_table_sql := create_table_sql || 'UUID';
+                    ELSE
+                        create_table_sql := create_table_sql || 'UUID';
+                    END IF;
                 ELSE
                     create_table_sql := create_table_sql || 'TEXT';
             END CASE;
             
-            -- Add NOT NULL constraint for required fields
+            -- Add constraints
             IF field_record.is_required THEN
                 create_table_sql := create_table_sql || ' NOT NULL';
             END IF;
             
-            -- Add default value if specified
+            IF field_record.is_unique THEN
+                create_table_sql := create_table_sql || ' UNIQUE';
+            END IF;
+            
             IF field_record.default_value IS NOT NULL AND field_record.default_value != '' THEN
-                create_table_sql := create_table_sql || ' DEFAULT ' || field_record.default_value;
+                create_table_sql := create_table_sql || ' DEFAULT ''' || field_record.default_value || '''';
             END IF;
         END LOOP;
     END IF;
     
-    -- Close the statement
+    -- Close the CREATE TABLE statement
     create_table_sql := create_table_sql || ')';
     
     -- Execute the CREATE TABLE statement
     EXECUTE create_table_sql;
     
-    RAISE NOTICE 'Created data table % with standard fields', p_table_name;
+    -- Enable Row Level Security for tenant isolation
+    EXECUTE 'ALTER TABLE data.' || data_table_name || ' ENABLE ROW LEVEL SECURITY';
+    
+    -- Create RLS policy for tenant isolation
+    EXECUTE 'CREATE POLICY tenant_isolation_policy ON data.' || data_table_name || 
+            ' FOR ALL TO PUBLIC USING (tenant_id = current_setting(''app.current_tenant_id'', true)::uuid)';
+    
+    -- Create indexes for better performance
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_' || data_table_name || '_tenant_id ON data.' || data_table_name || ' (tenant_id)';
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_' || data_table_name || '_created_at ON data.' || data_table_name || ' (created_at)';
+    
+    RAISE NOTICE 'Created data table: data.% with tenant_id isolation and RLS', data_table_name;
+    
+    -- Return the data table name
+    RETURN data_table_name;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create function to drop data tables for collections
-CREATE OR REPLACE FUNCTION drop_data_table(collection_id UUID, table_name TEXT)
+-- Create function to drop data tables
+CREATE OR REPLACE FUNCTION drop_data_table(p_data_table_name TEXT)
 RETURNS VOID AS $$
-DECLARE
-    tenant_schema TEXT;
 BEGIN
-    -- Get the tenant schema for this collection
-    SELECT t.slug INTO tenant_schema 
-    FROM tenants t 
-    JOIN collections c ON t.id = c.tenant_id 
-    WHERE c.id = collection_id;
-    
-    -- Drop the table if it exists
-    EXECUTE 'DROP TABLE IF EXISTS "' || tenant_schema || '".data_' || table_name;
+    -- Drop the data table from data schema
+    EXECUTE 'DROP TABLE IF EXISTS data.' || p_data_table_name || ' CASCADE';
+    RAISE NOTICE 'Dropped data table: data.%', p_data_table_name;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create function to ensure standard fields for collections
-CREATE OR REPLACE FUNCTION ensure_standard_collection_fields(p_collection_id UUID, p_tenant_id UUID)
+-- Create function to set user context for RLS
+CREATE OR REPLACE FUNCTION set_user_context(p_user_id UUID, p_tenant_id UUID)
 RETURNS VOID AS $$
-DECLARE
-    field_exists BOOLEAN;
 BEGIN
-    -- Check and add 'display_name' field if it doesn't exist (optional, for admin UI)
-    SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'display_name') INTO field_exists;
-    IF NOT field_exists THEN
-        INSERT INTO fields (collection_id, name, display_name, type, is_required, is_unique, sort_order, tenant_id)
-        VALUES (p_collection_id, 'display_name', 'Display Name', 'text', false, false, 2, p_tenant_id);
-    END IF;
-
-    -- Check and add 'created_at' field if it doesn't exist
-    SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'created_at') INTO field_exists;
-    IF NOT field_exists THEN
-        INSERT INTO fields (collection_id, name, display_name, type, is_required, sort_order, tenant_id)
-        VALUES (p_collection_id, 'created_at', 'Created At', 'datetime', false, 100, p_tenant_id);
-    END IF;
-
-    -- Check and add 'created_by' field if it doesn't exist
-    SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'created_by') INTO field_exists;
-    IF NOT field_exists THEN
-        INSERT INTO fields (collection_id, name, display_name, type, is_required, sort_order, tenant_id)
-        VALUES (p_collection_id, 'created_by', 'Created By', 'uuid', false, 101, p_tenant_id);
-    END IF;
-
-    -- Check and add 'updated_at' field if it doesn't exist
-    SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'updated_at') INTO field_exists;
-    IF NOT field_exists THEN
-        INSERT INTO fields (collection_id, name, display_name, type, is_required, sort_order, tenant_id)
-        VALUES (p_collection_id, 'updated_at', 'Updated At', 'datetime', false, 102, p_tenant_id);
-    END IF;
-
-    -- Check and add 'updated_by' field if it doesn't exist
-    SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'updated_by') INTO field_exists;
-    IF NOT field_exists THEN
-        INSERT INTO fields (collection_id, name, display_name, type, is_required, sort_order, tenant_id)
-        VALUES (p_collection_id, 'updated_by', 'Updated By', 'uuid', false, 103, p_tenant_id);
-    END IF;
-    
-    -- Check and add 'tenant_id' field if it doesn't exist
-    SELECT EXISTS(SELECT 1 FROM fields WHERE collection_id = p_collection_id AND name = 'tenant_id') INTO field_exists;
-    IF NOT field_exists THEN
-        INSERT INTO fields (collection_id, name, display_name, type, is_required, sort_order, tenant_id)
-        VALUES (p_collection_id, 'tenant_id', 'Tenant ID', 'uuid', false, 104, p_tenant_id);
-    END IF;
-    
-    -- Note: We intentionally do NOT add a 'name' field by default
-    -- Collections should define their own meaningful fields
+    -- Set the tenant_id in the session for RLS policies
+    PERFORM set_config('app.current_tenant_id', p_tenant_id::text, true);
+    PERFORM set_config('app.current_user_id', p_user_id::text, true);
 END;
 $$ LANGUAGE plpgsql;
 
--- Create function to add standard fields to new collections
-CREATE OR REPLACE FUNCTION add_standard_fields_to_new_collection()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Only add standard fields to non-system collections
-    IF NEW.is_system = false THEN
-        -- First add standard fields to the fields table
-        PERFORM ensure_standard_collection_fields(NEW.id, NEW.tenant_id);
-        -- Then create the data table (which will now include the standard fields)
-        PERFORM create_data_table(NEW.id, NEW.name);
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create function to add permissions for new collections
-CREATE OR REPLACE FUNCTION admin_collection_permissions_trigger()
-RETURNS TRIGGER AS $$
-DECLARE
-    admin_role_id UUID;
-    creator_role_id UUID;
-BEGIN
-    -- Get admin role ID for the tenant
-    SELECT id INTO admin_role_id FROM roles WHERE name = 'admin' AND tenant_id = NEW.tenant_id;
-    
-    -- Get the creator's role (assuming they have admin role for now)
-    SELECT ur.role_id INTO creator_role_id 
-    FROM user_roles ur 
-    WHERE ur.user_id = NEW.created_by 
-    LIMIT 1;
-    
-    -- Add admin permissions for the new collection
-    IF admin_role_id IS NOT NULL THEN
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (admin_role_id, NEW.name, 'create', ARRAY['*'], NEW.tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (admin_role_id, NEW.name, 'read', ARRAY['*'], NEW.tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (admin_role_id, NEW.name, 'update', ARRAY['*'], NEW.tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id)
-        VALUES 
-            (admin_role_id, NEW.name, 'delete', ARRAY['*'], NEW.tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    END IF;
-    
-    -- Add creator permissions (full access to their own collection)
-    IF creator_role_id IS NOT NULL THEN
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (creator_role_id, NEW.name, 'create', ARRAY['*'], NEW.tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (creator_role_id, NEW.name, 'read', ARRAY['*'], NEW.tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (creator_role_id, NEW.name, 'update', ARRAY['*'], NEW.tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (creator_role_id, NEW.name, 'delete', ARRAY['*'], NEW.tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create triggers for collections
-CREATE TRIGGER trigger_add_standard_fields 
-    AFTER INSERT ON collections 
-    FOR EACH ROW 
-    EXECUTE FUNCTION add_standard_fields_to_new_collection();
-
-CREATE TRIGGER trigger_add_admin_collection_permissions 
-    AFTER INSERT ON collections 
-    FOR EACH ROW 
-    EXECUTE FUNCTION admin_collection_permissions_trigger();
-
--- Create function to ensure admin permissions for existing collections
-CREATE OR REPLACE FUNCTION ensure_admin_collection_permissions()
-RETURNS VOID AS $$
-DECLARE
-    collection_record RECORD;
-    admin_role_id UUID;
-    main_tenant_id UUID;
-BEGIN
-    -- Get admin role ID and main tenant ID
-    SELECT id INTO admin_role_id FROM roles WHERE name = 'admin' AND tenant_id = (SELECT id FROM tenants WHERE slug = 'main');
-    SELECT id INTO main_tenant_id FROM tenants WHERE slug = 'main';
-    
-    -- Add permissions for all existing collections
-    FOR collection_record IN 
-        SELECT name FROM collections 
-        WHERE is_system = false AND tenant_id = main_tenant_id
-    LOOP
-        -- Add permissions for this collection if they don't exist
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (admin_role_id, collection_record.name, 'create', ARRAY['*'], main_tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (admin_role_id, collection_record.name, 'read', ARRAY['*'], main_tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (admin_role_id, collection_record.name, 'update', ARRAY['*'], main_tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-        
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (admin_role_id, collection_record.name, 'delete', ARRAY['*'], main_tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
--- Run the admin collection permissions function to update existing permissions
-SELECT ensure_admin_collection_permissions();
-
--- Create function to ensure admin has access to ALL collections (including future ones)
-CREATE OR REPLACE FUNCTION ensure_admin_unlimited_access()
-RETURNS VOID AS $$
-DECLARE
-    admin_role_id UUID;
-    main_tenant_id UUID;
-    collection_record RECORD;
-BEGIN
-    -- Get admin role ID and main tenant ID
-    SELECT id INTO admin_role_id FROM roles WHERE name = 'admin' AND tenant_id = (SELECT id FROM tenants WHERE slug = 'main');
-    SELECT id INTO main_tenant_id FROM tenants WHERE slug = 'main';
-    
-    -- Ensure admin has access to all system tables
-    INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-    VALUES 
-        (admin_role_id, 'tenants', 'create', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'tenants', 'read', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'tenants', 'update', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'tenants', 'delete', ARRAY['*'], main_tenant_id)
-    ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    
-    INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-    VALUES 
-        (admin_role_id, 'users', 'create', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'users', 'read', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'users', 'update', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'users', 'delete', ARRAY['*'], main_tenant_id)
-    ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    
-    INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-    VALUES 
-        (admin_role_id, 'roles', 'create', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'roles', 'read', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'roles', 'update', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'roles', 'delete', ARRAY['*'], main_tenant_id)
-    ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    
-    INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-    VALUES 
-        (admin_role_id, 'permissions', 'create', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'permissions', 'read', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'permissions', 'update', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'permissions', 'delete', ARRAY['*'], main_tenant_id)
-    ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    
-    INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-    VALUES 
-        (admin_role_id, 'collections', 'create', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'collections', 'read', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'collections', 'update', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'collections', 'delete', ARRAY['*'], main_tenant_id)
-    ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    
-    INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-    VALUES 
-        (admin_role_id, 'fields', 'create', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'fields', 'read', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'fields', 'update', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'fields', 'delete', ARRAY['*'], main_tenant_id)
-    ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    
-    INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-    VALUES 
-        (admin_role_id, 'api_keys', 'create', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'api_keys', 'read', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'api_keys', 'update', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'api_keys', 'delete', ARRAY['*'], main_tenant_id)
-    ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    
-    INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-    VALUES 
-        (admin_role_id, 'customers', 'create', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'customers', 'read', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'customers', 'update', ARRAY['*'], main_tenant_id),
-        (admin_role_id, 'customers', 'delete', ARRAY['*'], main_tenant_id)
-    ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    
-    -- Ensure admin has access to all existing collections
-    FOR collection_record IN 
-        SELECT name FROM collections 
-        WHERE is_system = false AND tenant_id = main_tenant_id
-    LOOP
-        INSERT INTO permissions (role_id, table_name, action, allowed_fields, tenant_id) 
-        VALUES 
-            (admin_role_id, collection_record.name, 'create', ARRAY['*'], main_tenant_id),
-            (admin_role_id, collection_record.name, 'read', ARRAY['*'], main_tenant_id),
-            (admin_role_id, collection_record.name, 'update', ARRAY['*'], main_tenant_id),
-            (admin_role_id, collection_record.name, 'delete', ARRAY['*'], main_tenant_id)
-        ON CONFLICT (role_id, table_name, action) DO NOTHING;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
--- Run the admin unlimited access function
-SELECT ensure_admin_unlimited_access();
-
--- Manually create data tables for initial collections with proper standard fields
--- Use the updated create_data_table function that includes created_by, updated_by, etc.
-SELECT create_data_table(id, name) FROM collections WHERE name IN ('blog_posts', 'customers');
-
--- Create triggers for updated_at columns on data tables
+-- Create trigger function to automatically create data tables when collections are created
 CREATE OR REPLACE FUNCTION create_data_table_triggers()
 RETURNS VOID AS $$
-DECLARE
-    collection_record RECORD;
-    tenant_schema TEXT;
-    trigger_sql TEXT;
 BEGIN
-    -- Loop through all non-system collections
-    FOR collection_record IN 
-        SELECT c.id, c.name, c.tenant_id, t.slug as tenant_schema
-        FROM collections c
-        JOIN tenants t ON c.tenant_id = t.id
-        WHERE c.is_system = false
-    LOOP
-        tenant_schema := collection_record.tenant_schema;
-        
-        -- Create trigger for updated_at
-        BEGIN
-            trigger_sql := 'CREATE TRIGGER update_data_' || collection_record.name || '_updated_at 
-                           BEFORE UPDATE ON "' || tenant_schema || '".data_' || collection_record.name || ' 
-                           FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()';
-            EXECUTE trigger_sql;
-        EXCEPTION WHEN OTHERS THEN
-            RAISE NOTICE 'Could not create trigger for data_%: %', collection_record.name, SQLERRM;
-        END;
-        
-        RAISE NOTICE 'Added triggers to data_%', collection_record.name;
-    END LOOP;
+    -- Drop existing trigger if it exists
+    DROP TRIGGER IF EXISTS trigger_create_data_table ON collections;
+    
+    -- Create new trigger for new collections
+    CREATE TRIGGER trigger_create_data_table
+        AFTER INSERT ON collections
+        FOR EACH ROW
+        EXECUTE FUNCTION create_collection_data_table();
+    
+    RAISE NOTICE 'Created data table trigger for multi-schema architecture';
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers for all data tables
+-- Create trigger function that generates data table name and creates the table
+CREATE OR REPLACE FUNCTION create_collection_data_table()
+RETURNS TRIGGER AS $$
+DECLARE
+    data_table_name TEXT;
+BEGIN
+    -- Generate the data table name
+    data_table_name := generate_data_table_name(NEW.slug, NEW.tenant_id);
+    
+    -- Update the collection record with the data table name
+    UPDATE collections 
+    SET data_table_name = data_table_name 
+    WHERE id = NEW.id;
+    
+    -- Create the actual data table
+    PERFORM create_data_table(NEW.id, NEW.slug, NEW.tenant_id);
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply the trigger
 SELECT create_data_table_triggers();
 
--- Fix the permissions to use the correct table names (data_customers, not customers)
--- First, remove any duplicate permissions that might exist
-DELETE FROM permissions 
-WHERE table_name = 'data_customers' 
-AND role_id IN (
-    SELECT role_id FROM permissions WHERE table_name = 'customers'
-);
+-- Insert default tenant
+INSERT INTO tenants (id, name, slug, domain, is_active) 
+VALUES ('6e68062f-c4c6-42df-9e01-e2d1081664f4', 'Main Tenant', 'main', 'localhost', true);
 
--- Then update the table names
-UPDATE permissions SET table_name = 'data_customers' WHERE table_name = 'customers';
+-- Insert default admin user
+INSERT INTO users (id, email, password_hash, first_name, last_name, tenant_id, is_active)
+VALUES ('38eae290-37b8-46a7-82ee-ae842d85c894', 'admin@example.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'User', '6e68062f-c4c6-42df-9e01-e2d1081664f4', true);
 
--- Add comments for documentation
-COMMENT ON TABLE tenants IS 'Multi-tenant support - each tenant has isolated data';
-COMMENT ON TABLE users IS 'User accounts with tenant isolation';
-COMMENT ON TABLE roles IS 'Role definitions with tenant isolation';
-COMMENT ON TABLE permissions IS 'Role-based permissions for table access';
-COMMENT ON TABLE collections IS 'Dynamic collections that can be created by users';
-COMMENT ON TABLE fields IS 'Field definitions for dynamic collections';
+-- Insert default roles for main tenant
+INSERT INTO roles (id, name, description, tenant_id)
+VALUES 
+    ('550e8400-e29b-41d4-a716-446655440001', 'admin', 'Administrator with full access', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('550e8400-e29b-41d4-a716-446655440002', 'user', 'Regular user with limited access', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('550e8400-e29b-41d4-a716-446655440003', 'viewer', 'Read-only access', '6e68062f-c4c6-42df-9e01-e2d1081664f4');
+
+-- Add admin user to main tenant with admin role
+INSERT INTO user_tenants (user_id, tenant_id, role_id, is_active)
+VALUES ('38eae290-37b8-46a7-82ee-ae842d85c894', '6e68062f-c4c6-42df-9e01-e2d1081664f4', '550e8400-e29b-41d4-a716-446655440001', true);
+
+-- Add admin role to user_roles table
+INSERT INTO user_roles (user_id, role_id)
+VALUES ('38eae290-37b8-46a7-82ee-ae842d85c894', '550e8400-e29b-41d4-a716-446655440001');
+
+-- Insert default permissions for system tables
+INSERT INTO permissions (id, role_id, table_name, action, tenant_id)
+VALUES 
+    -- Admin permissions for all system tables
+    ('650e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440001', 'users', 'create', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440001', 'users', 'read', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440003', '550e8400-e29b-41d4-a716-446655440001', 'users', 'update', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440004', '550e8400-e29b-41d4-a716-446655440001', 'users', 'delete', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440005', '550e8400-e29b-41d4-a716-446655440001', 'roles', 'create', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440006', '550e8400-e29b-41d4-a716-446655440001', 'roles', 'read', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440007', '550e8400-e29b-41d4-a716-446655440001', 'roles', 'update', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440008', '550e8400-e29b-41d4-a716-446655440001', 'roles', 'delete', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440009', '550e8400-e29b-41d4-a716-446655440001', 'permissions', 'create', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440010', '550e8400-e29b-41d4-a716-446655440001', 'permissions', 'read', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440011', '550e8400-e29b-41d4-a716-446655440001', 'permissions', 'update', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440012', '550e8400-e29b-41d4-a716-446655440001', 'permissions', 'delete', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440013', '550e8400-e29b-41d4-a716-446655440001', 'collections', 'create', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440014', '550e8400-e29b-41d4-a716-446655440001', 'collections', 'read', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440015', '550e8400-e29b-41d4-a716-446655440001', 'collections', 'update', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440016', '550e8400-e29b-41d4-a716-446655440001', 'collections', 'delete', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440017', '550e8400-e29b-41d4-a716-446655440001', 'fields', 'create', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440018', '550e8400-e29b-41d4-a716-446655440001', 'fields', 'read', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440019', '550e8400-e29b-41d4-a716-446655440001', 'fields', 'update', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440001', 'fields', 'delete', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440021', '550e8400-e29b-41d4-a716-446655440001', 'api_keys', 'create', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440001', 'api_keys', 'read', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440001', 'api_keys', 'update', '6e68062f-c4c6-42df-9e01-e2d1081664f4'),
+    ('650e8400-e29b-41d4-a716-446655440024', '550e8400-e29b-41d4-a716-446655440001', 'api_keys', 'delete', '6e68062f-c4c6-42df-9e01-e2d1081664f4');
+
+-- Add comments
+COMMENT ON TABLE tenants IS 'Tenant information and settings';
+COMMENT ON TABLE users IS 'User accounts with tenant association';
+COMMENT ON TABLE roles IS 'Roles within each tenant';
+COMMENT ON TABLE permissions IS 'Permissions for roles on specific tables';
+COMMENT ON TABLE collections IS 'Dynamic collections with tenant isolation and data table references';
+COMMENT ON TABLE fields IS 'Field definitions for collections';
 COMMENT ON TABLE api_keys IS 'API keys for programmatic access';
-COMMENT ON FUNCTION set_user_context(UUID) IS 'Sets the current user context for RLS policies';
-COMMENT ON FUNCTION create_data_table(UUID, TEXT) IS 'Creates data tables for collections';
-COMMENT ON FUNCTION drop_data_table(UUID, TEXT) IS 'Drops data tables for collections';
+
+COMMENT ON FUNCTION generate_data_table_name(TEXT, UUID) IS 'Generates unique data table names: collectionSlug-data-tenantId';
+COMMENT ON FUNCTION create_data_table(UUID, TEXT, UUID) IS 'Creates data tables in data schema with tenant-specific naming and RLS';
+COMMENT ON FUNCTION drop_data_table(TEXT) IS 'Drops data tables from data schema';
+COMMENT ON FUNCTION set_user_context(UUID, UUID) IS 'Sets user and tenant context for RLS policies';
